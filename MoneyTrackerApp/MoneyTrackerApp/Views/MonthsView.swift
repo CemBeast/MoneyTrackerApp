@@ -4,9 +4,17 @@ import CoreData
 struct MonthsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @State private var selectedMonth: MonthKey?
+    @State private var refreshToken = UUID()
     
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)])
     private var allTransactions: FetchedResults<CDTransaction>
+    
+    // Signature to detect any change in transactions (add/edit/delete/date/category/amount)
+    private var transactionSignature: String {
+        allTransactions.map {
+            "\($0.id.uuidString)-\($0.amount)-\($0.date.timeIntervalSince1970)-\($0.categoryRaw)-\($0.paymentMethodRaw ?? "")-\($0.notes ?? "")"
+        }.joined(separator: "|")
+    }
     
     private var availableMonths: [MonthKey] {
         let months = Set(allTransactions.map { $0.date.monthKey() })
@@ -23,10 +31,10 @@ struct MonthsView: View {
                         ForEach(availableMonths, id: \.self) { month in
                             NavigationLink(destination: MonthDetailView(month: month)) {
                                 CyberMonthRow(month: month, transactions: allTransactions)
-                                    .id("\(month.year)-\(month.month)-\(allTransactions.count)")
+                                    .id("\(month.year)-\(month.month)-\(transactionSignature)")
                             }
                         }
-                        .id("months-list-\(allTransactions.count)")
+                        .id("months-list-\(refreshToken)")
                         
                         if availableMonths.isEmpty {
                             VStack(spacing: 16) {
@@ -49,6 +57,9 @@ struct MonthsView: View {
                 }
             }
             .cyberNavTitle("Months")
+            .onChange(of: transactionSignature) { _ in
+                refreshToken = UUID()
+            }
         }
     }
 }
