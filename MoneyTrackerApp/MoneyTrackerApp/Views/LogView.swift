@@ -12,6 +12,7 @@ struct LogView: View {
     @State private var transactionToEdit: CDTransaction?
     @State private var deletedTransaction: CDTransaction?
     @State private var showUndoToast = false
+    @State private var refreshToken = UUID()
     
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)]
@@ -127,6 +128,7 @@ struct LogView: View {
                             showUndoToast = true
                         }
                     )
+                    .id(refreshToken)
                 }
             }
             .cyberNavTitle("Transaction Log")
@@ -149,13 +151,13 @@ struct LogView: View {
                 }
             }
             .sheet(isPresented: $showAddTransaction) {
-                AddEditTransactionView()
+                AddEditTransactionView(onSaved: { refreshToken = UUID() })
             }
             .sheet(isPresented: $showQuickAdd) {
                 PresetsQuickAddSheet()
             }
             .sheet(item: $transactionToEdit) { transaction in
-                AddEditTransactionView(transaction: transaction)
+                AddEditTransactionView(transaction: transaction, onSaved: { refreshToken = UUID() })
             }
             .toast(isPresented: $showUndoToast) {
                 CyberToast(

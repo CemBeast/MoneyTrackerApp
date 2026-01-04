@@ -7,6 +7,7 @@ struct AddEditTransactionView: View {
     
     let transaction: CDTransaction?
     let preset: CDPreset?
+    let onSaved: (() -> Void)?
     
     @State private var date: Date
     @State private var amount: String
@@ -21,13 +22,14 @@ struct AddEditTransactionView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
-    init(transaction: CDTransaction? = nil, preset: CDPreset? = nil) {
+    init(transaction: CDTransaction? = nil, preset: CDPreset? = nil, onSaved: (() -> Void)? = nil) {
         self.transaction = transaction
         self.preset = preset
+        self.onSaved = onSaved
         
         if let transaction = transaction {
             _date = State(initialValue: transaction.date)
-            _amount = State(initialValue: String(transaction.amount))
+            _amount = State(initialValue: String(format: "%.2f", transaction.amount))
             _category = State(initialValue: transaction.category)
             _merchant = State(initialValue: transaction.merchant ?? "")
             _paymentMethod = State(initialValue: transaction.paymentMethod)
@@ -37,7 +39,7 @@ struct AddEditTransactionView: View {
             _recurringInterval = State(initialValue: transaction.recurringInterval)
         } else if let preset = preset {
             _date = State(initialValue: Date())
-            _amount = State(initialValue: preset.defaultAmount > 0 ? String(preset.defaultAmount) : "")
+            _amount = State(initialValue: preset.defaultAmount > 0 ? String(format: "%.2f", preset.defaultAmount) : "")
             _category = State(initialValue: preset.defaultCategory)
             _merchant = State(initialValue: preset.defaultMerchant ?? "")
             _paymentMethod = State(initialValue: preset.defaultPaymentMethod)
@@ -248,6 +250,8 @@ struct AddEditTransactionView: View {
             PersistenceController.shared.save(context)
         }
         
+        // Notify parent
+        onSaved?()
         // Dismiss immediately - CoreData will automatically update all views
         dismiss()
     }
