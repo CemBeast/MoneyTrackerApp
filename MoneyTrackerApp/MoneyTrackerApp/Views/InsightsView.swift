@@ -121,7 +121,7 @@ struct CyberCategoryAveragesView: View {
                         HStack {
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(categoryColor(category))
+                                    .fill(category.color)
                                     .frame(width: 8, height: 8)
                                 Text(category.rawValue)
                                     .foregroundColor(.white.opacity(0.8))
@@ -130,7 +130,7 @@ struct CyberCategoryAveragesView: View {
                             Text(avg.currency())
                                 .font(.subheadline)
                                 .fontWeight(.bold)
-                                .foregroundColor(categoryColor(category))
+                                .foregroundColor(category.color)
                         }
                     }
                 }
@@ -139,24 +139,6 @@ struct CyberCategoryAveragesView: View {
             .cyberCard()
         }
         .id("category-avg-\(transactionSignature)")
-    }
-    
-    private func categoryColor(_ category: MoneyCategory) -> Color {
-        switch category {
-        case .housing: return .neonBlue
-        case .fixedBills: return .neonRed
-        case .food: return .neonOrange
-        case .transportation: return .neonPurple
-        case .healthcare: return .neonYellow
-        case .funLifestyle: return .neonPink
-        case .shopping: return .neonBlue
-        case .subscriptions: return .neonGreen
-        case .savings: return .neonGreen
-        case .investing: return .neonPurple
-        case .travel: return .neonOrange
-        case .gifts: return .neonPink
-        case .misc: return .white.opacity(0.7)
-        }
     }
 }
 
@@ -180,7 +162,7 @@ struct CyberPercentagesView: View {
                             HStack {
                                 HStack(spacing: 8) {
                                     Circle()
-                                        .fill(categoryColor(category))
+                                        .fill(category.color)
                                         .frame(width: 8, height: 8)
                                     Text(category.rawValue)
                                         .font(.caption)
@@ -190,12 +172,12 @@ struct CyberPercentagesView: View {
                                 Text(String(format: "%.1f%%", percent))
                                     .font(.caption)
                                     .fontWeight(.bold)
-                                    .foregroundColor(categoryColor(category))
+                                    .foregroundColor(category.color)
                             }
                             
                             CyberProgressBar(
                                 progress: percent / 100,
-                                barColor: categoryColor(category)
+                                barColor: category.color
                             )
                         }
                     }
@@ -205,24 +187,6 @@ struct CyberPercentagesView: View {
             .cyberCard()
         }
         .id("percentages-\(transactionSignature)-\(selectedMonth?.title ?? "all")")
-    }
-    
-    private func categoryColor(_ category: MoneyCategory) -> Color {
-        switch category {
-        case .housing: return .neonBlue
-        case .fixedBills: return .neonRed
-        case .food: return .neonOrange
-        case .transportation: return .neonPurple
-        case .healthcare: return .neonYellow
-        case .funLifestyle: return .neonPink
-        case .shopping: return .neonBlue
-        case .subscriptions: return .neonGreen
-        case .savings: return .neonGreen
-        case .investing: return .neonPurple
-        case .travel: return .neonOrange
-        case .gifts: return .neonPink
-        case .misc: return .white.opacity(0.7)
-        }
     }
 }
 
@@ -356,7 +320,7 @@ struct CyberCategoryPieChart: View {
         
         return percents.compactMap { category, percent in
             guard percent > 0 else { return nil }
-            let color = categoryColor(category)
+            let color = category.color
             return (
                 category: category.rawValue,
                 amount: amounts[category] ?? 0,
@@ -424,26 +388,8 @@ struct CyberCategoryPieChart: View {
             .id("category-chart-\(transactionSignature)-\(selectedMonth?.title ?? "all")")
         }
     }
-    
-    private func categoryColor(_ category: MoneyCategory) -> Color {
-        switch category {
-        case .housing: return .neonBlue
-        case .fixedBills: return .neonRed
-        case .food: return .neonOrange
-        case .transportation: return .neonPurple
-        case .healthcare: return .neonYellow
-        case .funLifestyle: return .neonPink
-        case .shopping: return .neonBlue
-        case .subscriptions: return .neonGreen
-        case .savings: return .neonGreen
-        case .investing: return .neonPurple
-        case .travel: return .neonOrange
-        case .gifts: return .neonPink
-        case .misc: return .white.opacity(0.7)
-        }
-    }
 }
-
+    
 struct CyberPaymentMethodPieChart: View {
     let stats: InsightsStats
     let selectedMonth: MonthKey?

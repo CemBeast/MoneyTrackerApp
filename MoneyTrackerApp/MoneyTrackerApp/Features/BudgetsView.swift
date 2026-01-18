@@ -26,24 +26,6 @@ struct BudgetsView: View {
         _budgets = FetchRequest(fetchRequest: request)
     }
     
-    private func categoryColor(_ category: MoneyCategory) -> Color {
-        switch category {
-        case .housing: return .neonBlue
-        case .fixedBills: return .neonRed
-        case .food: return .neonOrange
-        case .transportation: return .neonPurple
-        case .healthcare: return .neonYellow
-        case .funLifestyle: return .neonPink
-        case .shopping: return .neonBlue
-        case .subscriptions: return .neonGreen
-        case .savings: return .neonGreen
-        case .investing: return .neonPurple
-        case .travel: return .neonOrange
-        case .gifts: return .neonPink
-        case .misc: return .white.opacity(0.7)
-        }
-    }
-    
     var body: some View {
         NavigationView {
             ZStack {
@@ -71,7 +53,7 @@ struct BudgetsView: View {
                                 ForEach(MoneyCategory.allCases) { category in
                                     CyberBudgetInputRow(
                                         category: category,
-                                        color: categoryColor(category),
+                                        color: category.color,
                                         value: Binding(
                                             get: { budgetLimits[category] ?? "" },
                                             set: { budgetLimits[category] = $0 }

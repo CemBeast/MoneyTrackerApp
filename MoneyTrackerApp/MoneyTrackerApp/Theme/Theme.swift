@@ -17,10 +17,28 @@ extension Color {
     static let neonOrange = Color(red: 1.0, green: 0.5, blue: 0.2)
     static let neonYellow = Color(red: 1.0, green: 0.9, blue: 0.2)
     static let neonRed = Color(red: 1.0, green: 0.3, blue: 0.3)
+    static let neonCyan = Color(red: 0.0, green: 0.95, blue: 1.0)
+    static let neonTeal = Color(red: 0.0, green: 0.85, blue: 0.7)
+    static let neonMint = Color(red: 0.55, green: 1.0, blue: 0.75)
+    static let neonIndigo = Color(red: 0.5, green: 0.4, blue: 1.0)
+    static let neonAmber = Color(red: 1.0, green: 0.75, blue: 0.25)
+    static let neonMagenta = Color(red: 1.0, green: 0.0, blue: 0.8)
     
     // Category colors for charts
     static let cyberChartColors: [Color] = [
-        .neonGreen, .neonBlue, .neonPink, .neonPurple, .neonOrange, .neonYellow, .neonRed
+        .neonBlue,
+        .neonRed,
+        .neonOrange,
+        .neonPurple,
+        .neonYellow,
+        .neonPink,
+        .neonCyan,
+        .neonGreen,
+        .neonMint,
+        .neonIndigo,
+        .neonAmber,
+        .neonMagenta,
+        .neonTeal
     ]
 }
 
