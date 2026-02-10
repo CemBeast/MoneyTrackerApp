@@ -8,8 +8,9 @@ struct RecurringEngine {
     func generateForMonth(_ month: MonthKey) {
         guard let templates = fetchRecurringTemplates(), !templates.isEmpty else { return }
         
+        let now = Date()
         for template in templates {
-            generateMonthlyInstanceIfNeeded(for: template, month: month, onlyIfDueBy: nil)
+            generateMonthlyInstanceIfNeeded(for: template, month: month, onlyIfDueBy: now)
         }
         
         PersistenceController.shared.save(context)
