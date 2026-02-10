@@ -44,6 +44,8 @@ enum TransactionType: Int16, CaseIterable, Identifiable {
 
 enum RecurringInterval: String, CaseIterable, Identifiable {
     case monthly = "monthly"
+    case weekly = "weekly"
+    case daily = "daily"
     var id: String { rawValue }
 }
 
