@@ -16,7 +16,6 @@ struct AddEditTransactionView: View {
     @State private var paymentMethod: PaymentMethod
     @State private var notes: String
     @State private var type: TransactionType
-    @State private var isRecurring: Bool
     @State private var recurringInterval: RecurringInterval?
     
     @State private var showError = false
@@ -35,7 +34,6 @@ struct AddEditTransactionView: View {
             _paymentMethod = State(initialValue: transaction.paymentMethod)
             _notes = State(initialValue: transaction.notes ?? "")
             _type = State(initialValue: transaction.type)
-            _isRecurring = State(initialValue: transaction.isRecurring)
             _recurringInterval = State(initialValue: transaction.recurringInterval)
         } else if let preset = preset {
             _date = State(initialValue: Date())
@@ -45,7 +43,6 @@ struct AddEditTransactionView: View {
             _paymentMethod = State(initialValue: preset.defaultPaymentMethod)
             _notes = State(initialValue: preset.defaultNotes ?? "")
             _type = State(initialValue: .expense)
-            _isRecurring = State(initialValue: false)
             _recurringInterval = State(initialValue: nil)
         } else {
             _date = State(initialValue: Date())
@@ -55,7 +52,6 @@ struct AddEditTransactionView: View {
             _paymentMethod = State(initialValue: .other)
             _notes = State(initialValue: "")
             _type = State(initialValue: .expense)
-            _isRecurring = State(initialValue: false)
             _recurringInterval = State(initialValue: nil)
         }
     }
@@ -150,26 +146,23 @@ struct AddEditTransactionView: View {
                             CyberSectionHeader(title: "Recurring")
                             
                             VStack(spacing: 12) {
-                                HStack {
-                                    Text("Recurring Transaction")
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                    Toggle("", isOn: $isRecurring)
-                                        .tint(.neonGreen)
+                                CyberFormRow(label: "How Often") {
+                                    Picker("", selection: $recurringInterval) {
+                                        Text("None").tag(nil as RecurringInterval?)
+                                        ForEach(RecurringInterval.allCases) { interval in
+                                            Text(interval.rawValue.capitalized).tag(interval as RecurringInterval?)
+                                        }
+                                    }
+                                    .tint(.neonGreen)
                                 }
                                 
-                                if isRecurring {
+                                if recurringInterval == .monthly {
                                     CyberDivider()
                                     
-                                    CyberFormRow(label: "Interval") {
-                                        Picker("", selection: $recurringInterval) {
-                                            Text("None").tag(nil as RecurringInterval?)
-                                            ForEach(RecurringInterval.allCases) { interval in
-                                                Text(interval.rawValue.capitalized).tag(interval as RecurringInterval?)
-                                            }
-                                        }
-                                        .tint(.neonGreen)
-                                    }
+                                    Text("Monthly repeats on day \(Calendar.current.component(.day, from: date)), using the last day when needed.")
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.6))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
                             .padding()
@@ -219,7 +212,7 @@ struct AddEditTransactionView: View {
         
         let context = transaction?.managedObjectContext ?? viewContext
         let txn: CDTransaction
-        let isEditing = transaction != nil
+        let isRecurring = recurringInterval != nil
         
         if let transaction = transaction {
             txn = transaction
@@ -227,10 +220,6 @@ struct AddEditTransactionView: View {
             txn = CDTransaction(context: context)
             txn.id = UUID()
             txn.createdAt = Date()
-            
-            if isRecurring && recurringInterval != nil {
-                txn.recurringGroupId = UUID()
-            }
         }
         
         // Update transaction properties
@@ -243,6 +232,17 @@ struct AddEditTransactionView: View {
         txn.typeRaw = type.rawValue
         txn.isRecurring = isRecurring
         txn.recurringIntervalRaw = recurringInterval?.rawValue
+        
+        // Generated instances should keep their source IDs untouched.
+        if txn.generatedFromRecurringId == nil {
+            if isRecurring {
+                if txn.recurringGroupId == nil {
+                    txn.recurringGroupId = UUID()
+                }
+            } else {
+                txn.recurringGroupId = nil
+            }
+        }
         
         // Ensure the object is marked as updated
         if context.hasChanges {

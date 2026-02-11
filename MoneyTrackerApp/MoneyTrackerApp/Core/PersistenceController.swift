@@ -78,7 +78,7 @@ final class PersistenceController {
 
             // Recurring (templates)
             attr("isRecurring", .booleanAttributeType, optional: false),
-            attr("recurringIntervalRaw", .stringAttributeType, optional: true), // "monthly"
+            attr("recurringIntervalRaw", .stringAttributeType, optional: true), // "monthly" | "weekly" | "daily"
             attr("recurringGroupId", .UUIDAttributeType, optional: true),
             attr("generatedFromRecurringId", .UUIDAttributeType, optional: true),
 
