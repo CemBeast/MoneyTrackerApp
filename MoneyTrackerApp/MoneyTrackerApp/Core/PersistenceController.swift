@@ -10,16 +10,34 @@ final class PersistenceController {
 
         if inMemory {
             container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
+        } else {
+            // Enable lightweight migration when model changes (e.g. new optional attributes)
+            container.persistentStoreDescriptions.first?.setOption(
+                true as NSNumber,
+                forKey: NSMigratePersistentStoresAutomaticallyOption
+            )
+            container.persistentStoreDescriptions.first?.setOption(
+                true as NSNumber,
+                forKey: NSInferMappingModelAutomaticallyOption
+            )
         }
 
+        let semaphore = inMemory ? DispatchSemaphore(value: 0) : nil
         container.loadPersistentStores { _, error in
             if let error = error as NSError? {
                 fatalError("CoreData error: \(error), \(error.userInfo)")
             }
+            semaphore?.signal()
         }
+        semaphore?.wait()
 
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         container.viewContext.automaticallyMergesChangesFromParent = true
+    }
+
+    /// Creates an in-memory controller for unit tests. Data is not persisted.
+    static func inMemoryForTesting() -> PersistenceController {
+        PersistenceController(inMemory: true)
     }
 
     func save(_ context: NSManagedObjectContext) {

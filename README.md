@@ -8,7 +8,7 @@ Cyberpunk-flavored personal finance tracker built with SwiftUI and Core Data. Lo
 - Insights: category distribution pie, payment-method pie, last-6-months bar chart, monthly averages, and percentage breakdowns (Charts framework; iOS 16+).
 - Categories: unique neon color per `MoneyCategory` (see `Theme/MoneyCategory+Color.swift`) plus icons and labels.
 - Presets: quick-add common transactions from saved presets.
-- Recurring: `RecurringEngine` generates transactions for the current month.
+- Recurring: `RecurringEngine` generates daily, weekly, and monthly transactions automatically (on app launch and when returning to foreground).
 - Core Data: local persistence via `PersistenceController`.
 
 ### Requirements
@@ -47,6 +47,9 @@ Cyberpunk-flavored personal finance tracker built with SwiftUI and Core Data. Lo
 
 ### Running Tests
 - In Xcode: `Product > Test` (targets: `MoneyTrackerAppTests`, `MoneyTrackerAppUITests`).
+- **RecurringEngineWeeklyTests**: Unit tests for weekly recurring generation.
+- **RecurringEngineDailyTests**: Unit tests for daily recurring generation.
+- **RecurringEngineMonthlyTests**: Unit tests for monthly recurring generation.
 
 ### Troubleshooting
 - If charts are blank, ensure you’re running on iOS 16+.

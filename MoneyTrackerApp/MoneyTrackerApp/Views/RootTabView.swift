@@ -62,6 +62,12 @@ struct RootTabView: View {
                     Label("Insights", systemImage: "chart.pie.fill")
                 }
                 .tag(3)
+
+            BackupView()
+                .tabItem {
+                    Label("Backup", systemImage: "externaldrive")
+                }
+                .tag(4)
         }
         .tint(.neonGreen)
     }
