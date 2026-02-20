@@ -91,7 +91,6 @@ struct CategoriesView: View {
                     .padding()
                 }
             }
-            .cyberNavTitle("Categories")
         }
     }
 }

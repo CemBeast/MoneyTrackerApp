@@ -53,7 +53,6 @@ struct InsightsView: View {
                     .padding()
                 }
             }
-            .cyberNavTitle("Insights")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {

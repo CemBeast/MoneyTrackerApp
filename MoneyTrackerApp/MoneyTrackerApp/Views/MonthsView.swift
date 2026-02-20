@@ -56,7 +56,6 @@ struct MonthsView: View {
                     .padding()
                 }
             }
-            .cyberNavTitle("Months")
             .onChange(of: transactionSignature) { _ in
                 refreshToken = UUID()
             }
