@@ -4,6 +4,7 @@ import CoreData
 struct PresetsQuickAddSheet: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDPreset.name, ascending: true)])
     private var presets: FetchedResults<CDPreset>
     
@@ -141,6 +142,8 @@ struct CyberPresetRow: View {
     let preset: CDPreset
     let onTap: () -> Void
     
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
+    
     private var categoryColor: Color {
         preset.defaultCategory.color
     }
@@ -177,7 +180,7 @@ struct CyberPresetRow: View {
                 Spacer()
                 
                 if preset.defaultAmount > 0 {
-                    Text(preset.defaultAmount.currency())
+                    Text(currencyViewModel.format(amountInBase: preset.defaultAmount))
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.neonGreen)

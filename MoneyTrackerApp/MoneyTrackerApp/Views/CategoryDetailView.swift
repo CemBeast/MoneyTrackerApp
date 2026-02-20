@@ -3,6 +3,7 @@ import CoreData
 
 struct CategoryDetailView: View {
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     let category: MoneyCategory
     @State private var selectedMonth: MonthKey?
     
@@ -70,7 +71,7 @@ struct CategoryDetailView: View {
                             .foregroundColor(categoryColor)
                     }
                     
-                    Text(total.currency())
+                    Text(currencyViewModel.format(amountInBase: total))
                         .font(.system(size: 36, weight: .bold, design: .monospaced))
                         .foregroundColor(categoryColor)
                         .shadow(color: categoryColor.opacity(0.5), radius: 8)
@@ -114,7 +115,7 @@ struct CategoryDetailView: View {
                     LazyVStack(spacing: 8) {
                         ForEach(categoryTransactions) { transaction in
                             NavigationLink(destination: AddEditTransactionView(transaction: transaction)) {
-                                CyberTransactionRow(transaction: transaction)
+                                CyberTransactionRow(transaction: transaction, currencyViewModel: currencyViewModel)
                                     .id("\(transaction.id)-\(transaction.categoryRaw)-\(transaction.amount)-\(transaction.date.timeIntervalSince1970)-\(transaction.notes ?? "")")
                             }
                             .buttonStyle(.plain)

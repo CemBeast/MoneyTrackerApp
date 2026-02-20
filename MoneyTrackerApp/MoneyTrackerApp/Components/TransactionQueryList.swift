@@ -3,6 +3,7 @@ import CoreData
 
 struct TransactionQueryList: View {
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @FetchRequest private var transactions: FetchedResults<CDTransaction>
     
     let onTap: (CDTransaction) -> Void
@@ -57,7 +58,7 @@ struct TransactionQueryList: View {
         ScrollView {
             LazyVStack(spacing: 8) {
                 ForEach(transactions) { transaction in
-                    CyberTransactionRow(transaction: transaction)
+                    CyberTransactionRow(transaction: transaction, currencyViewModel: currencyViewModel)
                         .id("\(transaction.id)-\(transaction.amount)-\(transaction.date.timeIntervalSince1970)-\(transaction.paymentMethodRaw ?? "")-\(transaction.categoryRaw)-\(transaction.notes ?? "")")
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -107,7 +108,8 @@ struct TransactionQueryList: View {
 
 struct CyberTransactionRow: View {
     let transaction: CDTransaction
-    
+    @ObservedObject var currencyViewModel: CurrencyViewModel
+
     var body: some View {
         HStack(spacing: 16) {
             // Category icon
@@ -145,7 +147,7 @@ struct CyberTransactionRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text(transaction.amount.currency())
+                Text(currencyViewModel.format(amountInBase: transaction.amount))
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.neonGreen)

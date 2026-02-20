@@ -13,6 +13,7 @@ struct LogView: View {
     @State private var deletedTransaction: CDTransaction?
     @State private var showUndoToast = false
     @State private var refreshToken = UUID()
+    @State private var showSettings = false
     
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)]
@@ -133,6 +134,14 @@ struct LogView: View {
             }
             .cyberNavTitle("Transaction Log")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.neonGreen)
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
                         Button {
@@ -149,6 +158,9 @@ struct LogView: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
             .sheet(isPresented: $showAddTransaction) {
                 AddEditTransactionView(onSaved: { refreshToken = UUID() })

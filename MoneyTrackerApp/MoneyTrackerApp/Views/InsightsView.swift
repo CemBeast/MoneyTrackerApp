@@ -4,6 +4,7 @@ import CoreData
 
 struct InsightsView: View {
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @State private var selectedMonth: MonthKey?
     
     @FetchRequest(
@@ -37,7 +38,7 @@ struct InsightsView: View {
                         // Overall average
                         CyberStatCard(
                             title: "Average Monthly Spending",
-                            value: stats.averagePerMonthOverall().currency()
+                            value: currencyViewModel.format(amountInBase: stats.averagePerMonthOverall())
                         )
                     .id("avg-\(transactionSignature)")
                         
@@ -105,9 +106,10 @@ struct CyberStatCard: View {
 }
 
 struct CyberCategoryAveragesView: View {
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     let stats: InsightsStats
     let transactionSignature: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             CyberSectionHeader(title: "Monthly Averages")
@@ -126,7 +128,7 @@ struct CyberCategoryAveragesView: View {
                                     .foregroundColor(.white.opacity(0.8))
                             }
                             Spacer()
-                            Text(avg.currency())
+                            Text(currencyViewModel.format(amountInBase: avg))
                                 .font(.subheadline)
                                 .fontWeight(.bold)
                                 .foregroundColor(category.color)

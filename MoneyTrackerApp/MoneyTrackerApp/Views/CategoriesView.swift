@@ -3,6 +3,7 @@ import CoreData
 
 struct CategoriesView: View {
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @State private var selectedCategory: MoneyCategory?
     
     @FetchRequest(
@@ -57,7 +58,7 @@ struct CategoriesView: View {
                                 .foregroundColor(.white.opacity(0.5))
                                 .tracking(2)
                             
-                            Text(grandTotal.currency())
+                            Text(currencyViewModel.format(amountInBase: grandTotal))
                                 .font(.system(size: 36, weight: .bold, design: .monospaced))
                                 .foregroundColor(.neonGreen)
                                 .shadow(color: .neonGreenGlow, radius: 10)
@@ -102,6 +103,8 @@ struct CyberCategoryCard: View {
     let color: Color
     let icon: String
     
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -131,7 +134,7 @@ struct CyberCategoryCard: View {
                     .foregroundColor(.white.opacity(0.7))
                     .lineLimit(1)
                 
-                Text(total.currency())
+                Text(currencyViewModel.format(amountInBase: total))
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(color)

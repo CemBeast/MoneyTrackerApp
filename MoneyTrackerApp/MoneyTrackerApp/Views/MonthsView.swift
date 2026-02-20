@@ -3,6 +3,7 @@ import CoreData
 
 struct MonthsView: View {
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @State private var selectedMonth: MonthKey?
     @State private var refreshToken = UUID()
     
@@ -66,6 +67,7 @@ struct MonthsView: View {
 struct CyberMonthRow: View {
     let month: MonthKey
     let transactions: FetchedResults<CDTransaction>
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     
     private var monthTransactions: [CDTransaction] {
         let startDate = month.startDate
@@ -120,7 +122,7 @@ struct CyberMonthRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text(total.currency())
+                Text(currencyViewModel.format(amountInBase: total))
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(.neonGreen)
@@ -161,6 +163,8 @@ struct MonthDetailView: View {
     private var allTransactions: FetchedResults<CDTransaction>
     
     @FetchRequest private var budgets: FetchedResults<CDBudget>
+    
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
     
     init(month: MonthKey) {
         self.month = month
@@ -227,7 +231,7 @@ struct MonthDetailView: View {
                             .foregroundColor(.white.opacity(0.5))
                             .tracking(2)
                         
-                        Text(totalSpent.currency())
+                        Text(currencyViewModel.format(amountInBase: totalSpent))
                             .font(.system(size: 42, weight: .bold, design: .monospaced))
                             .foregroundColor(.neonGreen)
                             .shadow(color: .neonGreenGlow, radius: 10)
@@ -268,7 +272,7 @@ struct MonthDetailView: View {
                         VStack(spacing: 8) {
                             ForEach(monthTransactions) { transaction in
                                 NavigationLink(destination: AddEditTransactionView(transaction: transaction)) {
-                                    CyberTransactionRow(transaction: transaction)
+                                    CyberTransactionRow(transaction: transaction, currencyViewModel: currencyViewModel)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -310,6 +314,8 @@ struct CyberCategoryBudgetRow: View {
     let spent: Double
     let budget: Double?
     
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
+    
     private var categoryColor: Color {
         category.color
     }
@@ -327,7 +333,7 @@ struct CyberCategoryBudgetRow: View {
                 
                 Spacer()
                 
-                Text(spent.currency())
+                Text(currencyViewModel.format(amountInBase: spent))
                     .fontWeight(.bold)
                     .foregroundColor(categoryColor)
             }
@@ -343,13 +349,13 @@ struct CyberCategoryBudgetRow: View {
                 )
                 
                 HStack {
-                    Text(isOver ? "Over budget!" : "\((budget - spent).currency()) remaining")
+                    Text(isOver ? "Over budget!" : "\(currencyViewModel.format(amountInBase: budget - spent)) remaining")
                         .font(.caption2)
                         .foregroundColor(isOver ? .neonRed : .white.opacity(0.4))
                     
                     Spacer()
                     
-                    Text("of \(budget.currency())")
+                    Text("of \(currencyViewModel.format(amountInBase: budget))")
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.4))
                 }
