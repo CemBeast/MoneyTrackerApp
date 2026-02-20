@@ -42,6 +42,18 @@ enum AppCurrency: String, CaseIterable, Identifiable {
         case .thb: return Locale(identifier: "th_TH")
         }
     }
+
+    /// Currency symbol for input labels (e.g. $, ฿, €).
+    var currencySymbol: String {
+        switch self {
+        case .usd: return "$"
+        case .eur: return "€"
+        case .try_: return "₺"
+        case .jpy: return "¥"
+        case .cad: return "C$"
+        case .thb: return "฿"
+        }
+    }
 }
 
 struct SettingsView: View {

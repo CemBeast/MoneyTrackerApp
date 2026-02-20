@@ -4,14 +4,16 @@ import CoreData
 struct AddEditTransactionView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
-    
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
+
     let transaction: CDTransaction?
     let preset: CDPreset?
     let onSaved: (() -> Void)?
-    
+
     @State private var date: Date
     @State private var amount: String
     @State private var category: MoneyCategory
+    @State private var hasInitializedAmountFromCurrency = false
     @State private var merchant: String
     @State private var paymentMethod: PaymentMethod
     @State private var notes: String
@@ -28,7 +30,7 @@ struct AddEditTransactionView: View {
         
         if let transaction = transaction {
             _date = State(initialValue: transaction.date)
-            _amount = State(initialValue: String(format: "%.2f", transaction.amount))
+            _amount = State(initialValue: "")  // set in onAppear from currencyViewModel (amount stored in USD)
             _category = State(initialValue: transaction.category)
             _merchant = State(initialValue: transaction.merchant ?? "")
             _paymentMethod = State(initialValue: transaction.paymentMethod)
@@ -37,7 +39,7 @@ struct AddEditTransactionView: View {
             _recurringInterval = State(initialValue: transaction.recurringInterval)
         } else if let preset = preset {
             _date = State(initialValue: Date())
-            _amount = State(initialValue: preset.defaultAmount > 0 ? String(format: "%.2f", preset.defaultAmount) : "")
+            _amount = State(initialValue: "")  // set in onAppear from currencyViewModel if preset has amount
             _category = State(initialValue: preset.defaultCategory)
             _merchant = State(initialValue: preset.defaultMerchant ?? "")
             _paymentMethod = State(initialValue: preset.defaultPaymentMethod)
@@ -68,11 +70,11 @@ struct AddEditTransactionView: View {
                             CyberSectionHeader(title: "Amount")
                             
                             HStack {
-                                Text("$")
+                                Text(currencyViewModel.selectedCurrency.currencySymbol)
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.neonGreen)
-                                
+
                                 TextField("0.00", text: $amount)
                                     .font(.system(size: 48, weight: .bold, design: .monospaced))
                                     .foregroundColor(.neonGreen)
@@ -200,20 +202,31 @@ struct AddEditTransactionView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onAppear {
+                guard !hasInitializedAmountFromCurrency else { return }
+                if let t = transaction {
+                    amount = String(format: "%.2f", currencyViewModel.convertFromBase(t.amount))
+                } else if let p = preset, p.defaultAmount > 0 {
+                    amount = String(format: "%.2f", currencyViewModel.convertFromBase(p.defaultAmount))
+                }
+                hasInitializedAmountFromCurrency = true
+            }
         }
     }
-    
+
     private func save() {
-        guard let amountValue = Double(amount), amountValue > 0 else {
+        guard let amountInDisplayCurrency = Double(amount), amountInDisplayCurrency > 0 else {
             errorMessage = "Amount must be greater than 0"
             showError = true
             return
         }
-        
+
+        let amountInBase = currencyViewModel.convertToBase(amountInDisplayCurrency)
+
         let context = transaction?.managedObjectContext ?? viewContext
         let txn: CDTransaction
         let isRecurring = recurringInterval != nil
-        
+
         if let transaction = transaction {
             txn = transaction
         } else {
@@ -221,10 +234,10 @@ struct AddEditTransactionView: View {
             txn.id = UUID()
             txn.createdAt = Date()
         }
-        
-        // Update transaction properties
+
+        // Update transaction properties (amount stored in USD)
         txn.date = date
-        txn.amount = amountValue
+        txn.amount = amountInBase
         txn.categoryRaw = category.rawValue
         txn.merchant = merchant.isEmpty ? nil : merchant
         txn.paymentMethodRaw = paymentMethod.rawValue
