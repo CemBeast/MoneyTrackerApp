@@ -15,10 +15,14 @@ struct MoneyTrackApp: App {
                 .onAppear {
                     generateDueRecurringTransactions()
                 }
+                .task {
+                    await currencyViewModel.fetchRatesFromAPI()
+                }
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 generateDueRecurringTransactions()
+                Task { await currencyViewModel.fetchRatesFromAPI() }
             }
         }
     }

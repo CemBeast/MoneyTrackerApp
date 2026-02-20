@@ -3,7 +3,7 @@
 //  MoneyTrackerApp
 //
 //  Handles selected currency and conversion. Amounts are stored in base currency (USD).
-//  Designed so conversion rates can later be loaded from an API.
+//  Rates are fetched from the API once per day; manual rates used as fallback.
 //
 
 import Foundation
@@ -13,8 +13,12 @@ import Combine
 /// Base currency for stored amounts. All amounts in the app are in USD.
 private let baseCurrency = AppCurrency.usd
 
+/// Minimum interval between API fetches (once per day).
+private let fetchInterval: TimeInterval = 24 * 60 * 60
+
 final class CurrencyViewModel: ObservableObject {
     private let userDefaultsKey = "MoneyTracker.selectedCurrency"
+    private let lastRatesFetchKey = "MoneyTracker.lastRatesFetchDate"
 
     /// Currently selected display currency.
     @Published var selectedCurrency: AppCurrency {
@@ -23,7 +27,7 @@ final class CurrencyViewModel: ObservableObject {
         }
     }
 
-    /// Conversion rates from base (USD) to each currency. Only THB is set manually for now; others are 1.0 (no conversion). Replace with API-fetched rates later.
+    /// Conversion rates from base (USD) to each currency. Filled from API when available; otherwise manual fallback.
     @Published private(set) var ratesFromBase: [AppCurrency: Double] = [:]
 
     init() {
@@ -32,7 +36,7 @@ final class CurrencyViewModel: ObservableObject {
         loadManualRates()
     }
 
-    // MARK: - Manual rates (only Thai Baht for now)
+    // MARK: - Manual rates (fallback when API fails or before first fetch)
 
     private func loadManualRates() {
         var rates: [AppCurrency: Double] = [:]
@@ -42,12 +46,15 @@ final class CurrencyViewModel: ObservableObject {
         ratesFromBase = rates
     }
 
-    /// Manual rate from USD to the given currency. Only THB is defined; others return 1.0 until we add API or more manual rates.
+    /// Manual rate from USD to the given currency. Used only as fallback.
     private func rateFromBaseTo(_ currency: AppCurrency) -> Double {
         switch currency {
         case .usd: return 1.0
-        case .thb: return 35.0  // Manual: 1 USD ≈ 35 THB (update or replace with API later)
-        case .eur, .try_, .jpy, .cad: return 1.0  // No conversion yet
+        case .thb: return 35.0
+        case .eur: return 0.85
+        case .try_: return 34.0
+        case .jpy: return 150.0
+        case .cad: return 1.36
         }
     }
 
@@ -76,13 +83,27 @@ final class CurrencyViewModel: ObservableObject {
         return formatter.string(from: NSNumber(value: amount)) ?? "\(selectedCurrency.rawValue) \(amount)"
     }
 
-    // MARK: - Future: API-based rates
+    // MARK: - API-based rates (once per day)
 
-    /// Call this later to fetch up-to-date rates from an API. For now, does nothing.
+    /// Fetches rates from the API if the last fetch was more than 24 hours ago. Updates `ratesFromBase` on success; keeps existing (or manual) rates on failure.
     func fetchRatesFromAPI() async {
-        // TODO: e.g. fetch from exchangerate-api.com or similar, then update ratesFromBase
-        // Example shape:
-        // let rates = await someAPIClient.fetchRates(base: "USD")
-        // await MainActor.run { self.ratesFromBase = rates }
+        let now = Date()
+        let last = UserDefaults.standard.object(forKey: lastRatesFetchKey) as? Date ?? .distantPast
+        guard now.timeIntervalSince(last) >= fetchInterval else { return }
+
+        guard let rawRates = await CurrencyAPIService.fetchRates() else { return }
+
+        let mapped: [AppCurrency: Double] = AppCurrency.allCases.reduce(into: [:]) { result, currency in
+            if let rate = rawRates[currency.rawValue], rate > 0 {
+                result[currency] = rate
+            } else {
+                result[currency] = rateFromBaseTo(currency)
+            }
+        }
+
+        await MainActor.run {
+            ratesFromBase = mapped
+            UserDefaults.standard.set(now, forKey: lastRatesFetchKey)
+        }
     }
 }
