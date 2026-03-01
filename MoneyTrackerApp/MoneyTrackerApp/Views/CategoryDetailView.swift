@@ -57,61 +57,37 @@ struct CategoryDetailView: View {
     var body: some View {
         ZStack {
             Color.cyberBlack.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Header
+
+            ScrollView {
                 VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(categoryColor.opacity(0.15))
-                            .frame(width: 60, height: 60)
-                        
-                        Image(systemName: categoryIcon)
-                            .font(.system(size: 24))
-                            .foregroundColor(categoryColor)
-                    }
-                    
-                    Text(currencyViewModel.format(amountInBase: total))
-                        .font(.system(size: 36, weight: .bold, design: .monospaced))
-                        .foregroundColor(categoryColor)
-                        .shadow(color: categoryColor.opacity(0.5), radius: 8)
-                        .id("category-total-\(category.id)-\(total)-\(allTransactions.count)")
-                    
-                    Text("\(categoryTransactions.count) transactions")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.4))
-                        .id("category-count-\(category.id)-\(categoryTransactions.count)")
-                    
-                    // Month filter
-                    if !availableMonths.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                CyberFilterPill(
-                                    title: "All Time",
-                                    isSelected: selectedMonth == nil
-                                ) {
-                                    selectedMonth = nil
-                                }
-                                
-                                ForEach(availableMonths.prefix(6), id: \.self) { month in
-                                    CyberFilterPill(
-                                        title: month.title,
-                                        isSelected: selectedMonth == month
-                                    ) {
-                                        selectedMonth = month
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
+                    // Header card
+                    VStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(categoryColor.opacity(0.15))
+                                .frame(width: 60, height: 60)
+
+                            Image(systemName: categoryIcon)
+                                .font(.system(size: 24))
+                                .foregroundColor(categoryColor)
                         }
+
+                        Text(currencyViewModel.format(amountInBase: total))
+                            .font(.system(size: 36, weight: .bold, design: .monospaced))
+                            .foregroundColor(categoryColor)
+                            .shadow(color: categoryColor.opacity(0.5), radius: 8)
+                            .id("category-total-\(category.id)-\(total)-\(allTransactions.count)")
+
+                        Text("\(categoryTransactions.count) transactions")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.4))
+                            .id("category-count-\(category.id)-\(categoryTransactions.count)")
                     }
-                }
-                .padding(.vertical, 24)
-                .frame(maxWidth: .infinity)
-                .background(Color.cyberDarkGray)
-                
-                // Transaction list
-                ScrollView {
+                    .padding(.vertical, 24)
+                    .frame(maxWidth: .infinity)
+                    .cyberCard(glowColor: categoryColor)
+
+                    // Transaction list
                     LazyVStack(spacing: 8) {
                         ForEach(categoryTransactions) { transaction in
                             NavigationLink(destination: AddEditTransactionView(transaction: transaction)) {
@@ -121,13 +97,13 @@ struct CategoryDetailView: View {
                             .buttonStyle(.plain)
                         }
                         .id("category-transactions-\(category.id)-\(allTransactions.count)")
-                        
+
                         if categoryTransactions.isEmpty {
                             VStack(spacing: 12) {
                                 Image(systemName: categoryIcon)
                                     .font(.system(size: 32))
                                     .foregroundColor(categoryColor.opacity(0.3))
-                                
+
                                 Text("No transactions")
                                     .font(.subheadline)
                                     .foregroundColor(.white.opacity(0.4))
@@ -135,33 +111,32 @@ struct CategoryDetailView: View {
                             .padding(.top, 40)
                         }
                     }
-                    .padding()
                 }
+                .padding()
             }
         }
         .cyberNavTitle(category.rawValue)
-    }
-}
-
-struct CyberFilterPill: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(isSelected ? .cyberBlack : .neonGreen)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.neonGreen : Color.cyberGray)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.neonGreen.opacity(isSelected ? 0 : 0.5), lineWidth: 1)
-                )
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button("All Time") {
+                        selectedMonth = nil
+                    }
+                    ForEach(availableMonths, id: \.self) { month in
+                        Button(month.title) {
+                            selectedMonth = month
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedMonth?.title ?? "All Time")
+                            .font(.caption)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                    }
+                    .foregroundColor(.neonGreen)
+                }
+            }
         }
     }
 }

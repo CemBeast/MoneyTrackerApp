@@ -122,6 +122,10 @@ struct CyberTransactionRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(categoryColor.opacity(0.15))
                     .frame(width: 44, height: 44)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(categoryColor.opacity(0.5), lineWidth: 1)
+                    )
 
                 Image(systemName: categoryIcon)
                     .font(.system(size: 18))
@@ -180,7 +184,7 @@ struct CyberTransactionRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.neonGreen.opacity(0.1), lineWidth: 1)
+                .stroke(categoryColor.opacity(0.5), lineWidth: 1)
         )
     }
     

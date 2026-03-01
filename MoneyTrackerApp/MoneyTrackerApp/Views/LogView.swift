@@ -34,7 +34,7 @@ struct LogView: View {
                     // Filters
                     VStack(spacing: 12) {
                         CyberSearchBar(text: $searchText)
-                        
+
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 CyberFilterButton(
@@ -57,7 +57,7 @@ struct LogView: View {
                                         Color.clear
                                     }
                                 }
-                                
+
                                 CyberFilterButton(
                                     title: selectedCategory?.rawValue ?? "Category",
                                     isActive: selectedCategory != nil
@@ -76,7 +76,7 @@ struct LogView: View {
                                         Color.clear
                                     }
                                 }
-                                
+
                                 CyberFilterButton(
                                     title: selectedPaymentMethod?.rawValue ?? "Payment",
                                     isActive: selectedPaymentMethod != nil
@@ -95,7 +95,7 @@ struct LogView: View {
                                         Color.clear
                                     }
                                 }
-                                
+
                                 if selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || !searchText.isEmpty {
                                     Button("Clear") {
                                         selectedCategory = nil
@@ -112,7 +112,7 @@ struct LogView: View {
                         }
                     }
                     .padding(.vertical, 12)
-                    .background(Color.cyberDarkGray)
+                    .padding(.horizontal)
                     
                     TransactionQueryList(
                         searchText: searchText,
@@ -211,13 +211,12 @@ struct CyberSearchBar: View {
             }
         }
         .padding(12)
-        .background(Color.cyberGray)
+        .background(Color.cyberDarkGray)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.neonGreen.opacity(0.3), lineWidth: 1)
         )
-        .padding(.horizontal)
     }
 }
 
