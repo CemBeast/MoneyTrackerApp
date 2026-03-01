@@ -164,6 +164,7 @@ struct CyberNavTitle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color.cyberBlack, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)

@@ -1,54 +1,44 @@
 import SwiftUI
 import CoreData
 
+// Sentinel date used as the key for global (month-agnostic) budgets.
+let globalBudgetDate = Date(timeIntervalSince1970: 0)
+
 struct BudgetsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
-    
-    let monthStart: Date
-    
-    @FetchRequest private var budgets: FetchedResults<CDBudget>
-    
+
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDBudget.categoryRaw, ascending: true)],
+        predicate: NSPredicate(format: "monthStart == %@", Date(timeIntervalSince1970: 0) as NSDate)
+    )
+    private var budgets: FetchedResults<CDBudget>
+
     @State private var budgetLimits: [MoneyCategory: String] = [:]
-    
-    init(monthStart: Date) {
-        self.monthStart = monthStart
-        
-        let startOfMonth = monthStart.startOfMonth()
-        let endOfMonth = Calendar.current.date(byAdding: .month, value: 1, to: startOfMonth) ?? startOfMonth
-        
-        let request = NSFetchRequest<CDBudget>(entityName: "CDBudget")
-        request.predicate = NSPredicate(format: "monthStart >= %@ AND monthStart < %@",
-                                       startOfMonth as NSDate,
-                                       endOfMonth as NSDate)
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDBudget.categoryRaw, ascending: true)]
-        
-        _budgets = FetchRequest(fetchRequest: request)
-    }
-    
+
     var body: some View {
         NavigationView {
             ZStack {
                 Color.cyberBlack.ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
                         // Info card
                         HStack(spacing: 12) {
                             Image(systemName: "info.circle.fill")
                                 .foregroundColor(.neonGreen)
-                            
-                            Text("Set monthly budgets for each category. Leave empty to remove.")
+
+                            Text("Set a budget for each category. These limits apply to every month.")
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.6))
                         }
                         .padding()
                         .cyberCard()
-                        
+
                         // Budget inputs
                         VStack(spacing: 16) {
                             CyberSectionHeader(title: "Category Budgets")
-                            
+
                             VStack(spacing: 1) {
                                 ForEach(MoneyCategory.allCases) { category in
                                     CyberBudgetInputRow(
@@ -67,7 +57,7 @@ struct BudgetsView: View {
                                     .stroke(Color.neonGreen.opacity(0.2), lineWidth: 1)
                             )
                         }
-                        
+
                         // Save button
                         Button {
                             save()
@@ -98,33 +88,31 @@ struct BudgetsView: View {
             }
         }
     }
-    
+
     private func loadBudgets() {
         for budget in budgets {
             budgetLimits[budget.category] = budget.limit > 0 ? String(budget.limit) : ""
         }
     }
-    
+
     private func save() {
-        let startOfMonth = monthStart.startOfMonth()
-        
-        // Delete existing budgets for this month
+        // Delete all existing global budgets
         for budget in budgets {
             viewContext.delete(budget)
         }
-        
-        // Create/update budgets
+
+        // Re-create with updated values
         for category in MoneyCategory.allCases {
             if let limitText = budgetLimits[category], !limitText.isEmpty,
                let limit = Double(limitText), limit > 0 {
                 let budget = CDBudget(context: viewContext)
                 budget.id = UUID()
-                budget.monthStart = startOfMonth
+                budget.monthStart = globalBudgetDate
                 budget.categoryRaw = category.rawValue
                 budget.limit = limit
             }
         }
-        
+
         PersistenceController.shared.save(viewContext)
         dismiss()
     }
@@ -134,24 +122,24 @@ struct CyberBudgetInputRow: View {
     let category: MoneyCategory
     let color: Color
     @Binding var value: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 10) {
                 Circle()
                     .fill(color)
                     .frame(width: 10, height: 10)
-                
+
                 Text(category.rawValue)
                     .foregroundColor(.white)
             }
-            
+
             Spacer()
-            
+
             HStack(spacing: 4) {
                 Text("$")
                     .foregroundColor(.neonGreen.opacity(0.6))
-                
+
                 TextField("0.00", text: $value)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)

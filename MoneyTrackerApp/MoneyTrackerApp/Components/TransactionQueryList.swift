@@ -129,15 +129,32 @@ struct CyberTransactionRow: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.merchant ?? "No merchant")
-                    .font(.headline)
-                    .foregroundColor(.white)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(transaction.merchant ?? "No merchant")
+                        .font(.headline)
+                        .foregroundColor(.white)
 
-                if let notes = transaction.notes, !notes.isEmpty {
-                    Text(notes)
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.5))
-                        .lineLimit(1)
+                    Spacer()
+
+                    Text(transaction.date, style: .date)
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.4))
+                }
+
+                HStack(alignment: .firstTextBaseline) {
+                    if let notes = transaction.notes, !notes.isEmpty {
+                        Text(notes)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.5))
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Text(currencyViewModel.format(amountInBase: transaction.amount))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.neonGreen)
                 }
 
                 HStack(spacing: 8) {
@@ -145,7 +162,7 @@ struct CyberTransactionRow: View {
 
                     if shouldShowRecurring {
                         CyberTag(
-                            text: "🔄 \((transaction.recurringInterval?.rawValue ?? "recurring").capitalized)",
+                            text: (transaction.recurringInterval?.rawValue ?? "recurring").capitalized,
                             color: .neonGreen
                         )
                     }
@@ -155,19 +172,8 @@ struct CyberTransactionRow: View {
                         .foregroundColor(.white.opacity(0.4))
                 }
             }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(currencyViewModel.format(amountInBase: transaction.amount))
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.neonGreen)
-                
-                Text(transaction.date, style: .date)
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.4))
-            }
+
+            Spacer(minLength: 0)
         }
         .padding(14)
         .background(Color.cyberDarkGray)

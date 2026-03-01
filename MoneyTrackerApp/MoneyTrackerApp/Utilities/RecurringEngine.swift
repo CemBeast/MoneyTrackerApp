@@ -17,8 +17,10 @@ struct RecurringEngine {
     }
     
     func generateDueTransactions(asOf now: Date = Date()) {
+        backfillRecurringIntervalOnGeneratedInstances()
+
         guard let templates = fetchRecurringTemplates(), !templates.isEmpty else { return }
-        
+
         let currentMonth = now.monthKey()
         
         for template in templates {
@@ -41,6 +43,27 @@ struct RecurringEngine {
         PersistenceController.shared.save(context)
     }
     
+    /// Copies recurringIntervalRaw from templates to generated instances that lack it (e.g. created before we stored the interval).
+    private func backfillRecurringIntervalOnGeneratedInstances() {
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(format: "generatedFromRecurringId != nil AND recurringIntervalRaw == nil")
+        guard let instances = try? context.fetch(request), !instances.isEmpty else { return }
+
+        guard let templates = fetchRecurringTemplates() else { return }
+        let templateByGroupId = Dictionary(uniqueKeysWithValues: templates.compactMap { t -> (UUID, CDTransaction)? in
+            guard let gid = t.recurringGroupId else { return nil }
+            return (gid, t)
+        })
+
+        for instance in instances {
+            guard let groupId = instance.generatedFromRecurringId,
+                  let template = templateByGroupId[groupId],
+                  let interval = template.recurringIntervalRaw else { continue }
+            instance.recurringIntervalRaw = interval
+        }
+        PersistenceController.shared.save(context)
+    }
+
     private func fetchRecurringTemplates() -> [CDTransaction]? {
         // Recurring templates are source entries (not generated children).
         let templateRequest = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
@@ -76,7 +99,7 @@ struct RecurringEngine {
         instance.notes = template.notes
         instance.typeRaw = template.typeRaw
         instance.isRecurring = false
-        instance.recurringIntervalRaw = nil
+        instance.recurringIntervalRaw = template.recurringIntervalRaw
         instance.recurringGroupId = groupId
         instance.generatedFromRecurringId = groupId
         instance.createdAt = Date()
@@ -142,7 +165,7 @@ struct RecurringEngine {
                 instance.notes = template.notes
                 instance.typeRaw = template.typeRaw
                 instance.isRecurring = false
-                instance.recurringIntervalRaw = nil
+                instance.recurringIntervalRaw = template.recurringIntervalRaw
                 instance.recurringGroupId = groupId
                 instance.generatedFromRecurringId = groupId
                 instance.createdAt = Date()
@@ -191,7 +214,7 @@ struct RecurringEngine {
                 instance.notes = template.notes
                 instance.typeRaw = template.typeRaw
                 instance.isRecurring = false
-                instance.recurringIntervalRaw = nil
+                instance.recurringIntervalRaw = template.recurringIntervalRaw
                 instance.recurringGroupId = groupId
                 instance.generatedFromRecurringId = groupId
                 instance.createdAt = Date()

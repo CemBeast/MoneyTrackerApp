@@ -6,6 +6,7 @@ struct MonthsView: View {
     @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @State private var selectedMonth: MonthKey?
     @State private var refreshToken = UUID()
+    @State private var showBudgets = false
     
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)])
     private var allTransactions: FetchedResults<CDTransaction>
@@ -57,11 +58,25 @@ struct MonthsView: View {
                     .padding()
                 }
             }
-            .onChange(of: transactionSignature) { _ in
-                refreshToken = UUID()
+        .cyberNavTitle("Months")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showBudgets = true
+                } label: {
+                    Image(systemName: "dollarsign.circle")
+                        .foregroundColor(.neonGreen)
+                }
             }
         }
+        .sheet(isPresented: $showBudgets) {
+            BudgetsView()
+        }
+        .onChange(of: transactionSignature) { _ in
+            refreshToken = UUID()
+        }
     }
+}
 }
 
 struct CyberMonthRow: View {
@@ -155,29 +170,21 @@ struct CyberMonthRow: View {
 }
 
 struct MonthDetailView: View {
-    @Environment(\.managedObjectContext) private var viewContext
     let month: MonthKey
-    @State private var showBudgets = false
-    
+
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)])
     private var allTransactions: FetchedResults<CDTransaction>
-    
-    @FetchRequest private var budgets: FetchedResults<CDBudget>
-    
+
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDBudget.categoryRaw, ascending: true)],
+        predicate: NSPredicate(format: "monthStart == %@", Date(timeIntervalSince1970: 0) as NSDate)
+    )
+    private var budgets: FetchedResults<CDBudget>
+
     @EnvironmentObject var currencyViewModel: CurrencyViewModel
-    
+
     init(month: MonthKey) {
         self.month = month
-        
-        let startDate = month.startDate
-        let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
-        
-        let request = NSFetchRequest<CDBudget>(entityName: "CDBudget")
-        request.predicate = NSPredicate(format: "monthStart >= %@ AND monthStart < %@",
-                                       startDate as NSDate,
-                                       endDate as NSDate)
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDBudget.categoryRaw, ascending: true)]
-        _budgets = FetchRequest(fetchRequest: request)
     }
     
     private var monthTransactions: [CDTransaction] {
@@ -283,29 +290,6 @@ struct MonthDetailView: View {
             }
         }
         .cyberNavTitle(month.title)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 12) {
-                    Button {
-                        let engine = RecurringEngine(context: viewContext)
-                        engine.generateForMonth(month)
-                    } label: {
-                        Image(systemName: "repeat")
-                            .foregroundColor(.neonGreen)
-                    }
-                    
-                    Button {
-                        showBudgets = true
-                    } label: {
-                        Image(systemName: "dollarsign.circle")
-                            .foregroundColor(.neonGreen)
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showBudgets) {
-            BudgetsView(monthStart: month.startDate)
-        }
     }
 }
 
