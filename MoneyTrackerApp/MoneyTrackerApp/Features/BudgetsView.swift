@@ -7,6 +7,7 @@ let globalBudgetDate = Date(timeIntervalSince1970: 0)
 struct BudgetsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var currencyViewModel: CurrencyViewModel
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \CDBudget.categoryRaw, ascending: true)],
@@ -44,6 +45,7 @@ struct BudgetsView: View {
                                     CyberBudgetInputRow(
                                         category: category,
                                         color: category.color,
+                                        currencySymbol: currencyViewModel.selectedCurrency.currencySymbol,
                                         value: Binding(
                                             get: { budgetLimits[category] ?? "" },
                                             set: { budgetLimits[category] = $0 }
@@ -86,12 +88,20 @@ struct BudgetsView: View {
             .onAppear {
                 loadBudgets()
             }
+            .onChange(of: currencyViewModel.selectedCurrency) { _ in
+                loadBudgets()
+            }
         }
     }
 
     private func loadBudgets() {
         for budget in budgets {
-            budgetLimits[budget.category] = budget.limit > 0 ? String(budget.limit) : ""
+            if budget.limit > 0 {
+                let converted = currencyViewModel.convertFromBase(budget.limit)
+                budgetLimits[budget.category] = String(Int(converted.rounded()))
+            } else {
+                budgetLimits[budget.category] = ""
+            }
         }
     }
 
@@ -101,15 +111,15 @@ struct BudgetsView: View {
             viewContext.delete(budget)
         }
 
-        // Re-create with updated values
+        // Re-create, converting display currency back to base (USD)
         for category in MoneyCategory.allCases {
             if let limitText = budgetLimits[category], !limitText.isEmpty,
-               let limit = Double(limitText), limit > 0 {
+               let limitInDisplay = Double(limitText), limitInDisplay > 0 {
                 let budget = CDBudget(context: viewContext)
                 budget.id = UUID()
                 budget.monthStart = globalBudgetDate
                 budget.categoryRaw = category.rawValue
-                budget.limit = limit
+                budget.limit = currencyViewModel.convertToBase(limitInDisplay)
             }
         }
 
@@ -121,6 +131,7 @@ struct BudgetsView: View {
 struct CyberBudgetInputRow: View {
     let category: MoneyCategory
     let color: Color
+    let currencySymbol: String
     @Binding var value: String
 
     var body: some View {
@@ -137,10 +148,10 @@ struct CyberBudgetInputRow: View {
             Spacer()
 
             HStack(spacing: 4) {
-                Text("$")
+                Text(currencySymbol)
                     .foregroundColor(.neonGreen.opacity(0.6))
 
-                TextField("0.00", text: $value)
+                TextField("0", text: $value)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.neonGreen)
