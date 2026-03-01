@@ -1,4 +1,9 @@
 import CoreData
+import Foundation
+
+extension Notification.Name {
+    static let persistentStoreDidLoad = Notification.Name("MoneyTracker.persistentStoreDidLoad")
+}
 
 final class PersistenceController {
     static let shared = PersistenceController()
@@ -26,6 +31,11 @@ final class PersistenceController {
         container.loadPersistentStores { _, error in
             if let error = error as NSError? {
                 fatalError("CoreData error: \(error), \(error.userInfo)")
+            }
+            if !inMemory {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .persistentStoreDidLoad, object: nil)
+                }
             }
             semaphore?.signal()
         }

@@ -14,6 +14,13 @@ struct MoneyTrackApp: App {
                 .environmentObject(currencyViewModel)
                 .onAppear {
                     generateDueRecurringTransactions()
+                    // Delayed fallback in case store wasn't ready on first onAppear (cold launch)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        generateDueRecurringTransactions()
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .persistentStoreDidLoad)) { _ in
+                    generateDueRecurringTransactions()
                 }
                 .task {
                     await currencyViewModel.fetchRatesFromAPI()

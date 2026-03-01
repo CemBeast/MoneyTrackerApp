@@ -93,6 +93,43 @@ struct SettingsView: View {
                             .cyberCard()
                         }
                         .padding(.horizontal)
+
+                        // Recurring
+                        VStack(spacing: 16) {
+                            CyberSectionHeader(title: "Recurring")
+
+                            NavigationLink {
+                                RecurringTransactionsView()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "repeat.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.neonGreen)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("View Recurring Transactions")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        Text("See all transactions set to repeat")
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.5))
+                                    }
+
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.neonGreen.opacity(0.6))
+                                }
+                                .padding()
+                                .background(Color.cyberDarkGray)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.neonGreen.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                        }
+                        .padding(.horizontal)
                     }
                     .padding(.vertical, 20)
                 }

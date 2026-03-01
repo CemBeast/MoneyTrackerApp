@@ -109,6 +109,11 @@ struct TransactionQueryList: View {
 struct CyberTransactionRow: View {
     let transaction: CDTransaction
     @ObservedObject var currencyViewModel: CurrencyViewModel
+    var showRecurringBadge: Bool = true  // Show recurring indicator when transaction.isRecurring
+
+    private var shouldShowRecurring: Bool {
+        showRecurringBadge && (transaction.isRecurring || transaction.generatedFromRecurringId != nil)
+    }
 
     var body: some View {
         HStack(spacing: 16) {
@@ -117,27 +122,34 @@ struct CyberTransactionRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(categoryColor.opacity(0.15))
                     .frame(width: 44, height: 44)
-                
+
                 Image(systemName: categoryIcon)
                     .font(.system(size: 18))
                     .foregroundColor(categoryColor)
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(transaction.merchant ?? "No merchant")
                     .font(.headline)
                     .foregroundColor(.white)
-                
+
                 if let notes = transaction.notes, !notes.isEmpty {
                     Text(notes)
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.5))
                         .lineLimit(1)
                 }
-                
+
                 HStack(spacing: 8) {
                     CyberTag(text: transaction.category.rawValue, color: categoryColor)
-                    
+
+                    if shouldShowRecurring {
+                        CyberTag(
+                            text: "🔄 \((transaction.recurringInterval?.rawValue ?? "recurring").capitalized)",
+                            color: .neonGreen
+                        )
+                    }
+
                     Text(transaction.paymentMethod.rawValue)
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.4))
