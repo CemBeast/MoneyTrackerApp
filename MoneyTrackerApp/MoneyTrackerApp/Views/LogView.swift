@@ -7,6 +7,10 @@ struct LogView: View {
     @State private var selectedCategory: MoneyCategory?
     @State private var selectedPaymentMethod: PaymentMethod?
     @State private var selectedMonth: MonthKey?
+    @State private var startDate: Date?
+    @State private var endDate: Date?
+    @State private var showStartDatePicker = false
+    @State private var showEndDatePicker = false
     @State private var showAddTransaction = false
     @State private var showQuickAdd = false
     @State private var transactionToEdit: CDTransaction?
@@ -96,11 +100,27 @@ struct LogView: View {
                                     }
                                 }
 
-                                if selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || !searchText.isEmpty {
+                                CyberFilterButton(
+                                    title: startDate.map { dateLabel($0) } ?? "From",
+                                    isActive: startDate != nil
+                                ) {
+                                    showStartDatePicker = true
+                                }
+
+                                CyberFilterButton(
+                                    title: endDate.map { dateLabel($0) } ?? "To",
+                                    isActive: endDate != nil
+                                ) {
+                                    showEndDatePicker = true
+                                }
+
+                                if selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || !searchText.isEmpty || startDate != nil || endDate != nil {
                                     Button("Clear") {
                                         selectedCategory = nil
                                         selectedPaymentMethod = nil
                                         selectedMonth = nil
+                                        startDate = nil
+                                        endDate = nil
                                         searchText = ""
                                     }
                                     .font(.caption)
@@ -119,6 +139,8 @@ struct LogView: View {
                         category: selectedCategory,
                         paymentMethod: selectedPaymentMethod,
                         month: selectedMonth,
+                        startDate: startDate,
+                        endDate: endDate,
                         onTap: { transaction in
                             transactionToEdit = transaction
                         },
@@ -159,6 +181,28 @@ struct LogView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showStartDatePicker) {
+                CyberDatePickerSheet(
+                    title: "From Date",
+                    selected: Binding(
+                        get: { startDate ?? Date() },
+                        set: { startDate = $0 }
+                    )
+                ) {
+                    showStartDatePicker = false
+                }
+            }
+            .sheet(isPresented: $showEndDatePicker) {
+                CyberDatePickerSheet(
+                    title: "To Date",
+                    selected: Binding(
+                        get: { endDate ?? Date() },
+                        set: { endDate = $0 }
+                    )
+                ) {
+                    showEndDatePicker = false
+                }
+            }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
@@ -184,6 +228,45 @@ struct LogView: View {
                         showUndoToast = false
                     }
                 )
+            }
+        }
+    }
+
+    private func dateLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Cyber Date Picker Sheet
+struct CyberDatePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    @Binding var selected: Date
+    let onDone: () -> Void
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.cyberBlack.ignoresSafeArea()
+
+                DatePicker("", selection: $selected, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .colorScheme(.dark)
+                    .tint(.neonGreen)
+                    .padding()
+            }
+            .cyberNavTitle(title)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { onDone() }
+                        .foregroundColor(.neonGreen)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(.neonGreen)
+                }
             }
         }
     }

@@ -14,6 +14,8 @@ struct TransactionQueryList: View {
         category: MoneyCategory? = nil,
         paymentMethod: PaymentMethod? = nil,
         month: MonthKey? = nil,
+        startDate: Date? = nil,
+        endDate: Date? = nil,
         onTap: @escaping (CDTransaction) -> Void,
         onDelete: ((CDTransaction) -> Void)? = nil
     ) {
@@ -38,11 +40,21 @@ struct TransactionQueryList: View {
             predicates.append(NSPredicate(format: "paymentMethodRaw == %@", paymentMethod.rawValue))
         }
         
-        // Month filter
-        if let month = month {
-            let startDate = month.startDate
-            let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
-            predicates.append(NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate))
+        // Month filter (only applies when no custom date range is set)
+        if startDate == nil && endDate == nil, let month = month {
+            let mStart = month.startDate
+            let mEnd = Calendar.current.date(byAdding: .month, value: 1, to: mStart) ?? mStart
+            predicates.append(NSPredicate(format: "date >= %@ AND date < %@", mStart as NSDate, mEnd as NSDate))
+        }
+        
+        // Custom date range
+        if let startDate = startDate {
+            let startOfDay = Calendar.current.startOfDay(for: startDate)
+            predicates.append(NSPredicate(format: "date >= %@", startOfDay as NSDate))
+        }
+        if let endDate = endDate {
+            let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: endDate)) ?? endDate
+            predicates.append(NSPredicate(format: "date < %@", endOfDay as NSDate))
         }
         
         let finalPredicate = predicates.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
@@ -184,7 +196,7 @@ struct CyberTransactionRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(categoryColor.opacity(0.5), lineWidth: 1)
+                .stroke(categoryColor.opacity(0.2), lineWidth: 1)
         )
     }
     
