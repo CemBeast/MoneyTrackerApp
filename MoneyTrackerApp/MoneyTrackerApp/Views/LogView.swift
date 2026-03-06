@@ -9,8 +9,7 @@ struct LogView: View {
     @State private var selectedMonth: MonthKey?
     @State private var startDate: Date?
     @State private var endDate: Date?
-    @State private var showStartDatePicker = false
-    @State private var showEndDatePicker = false
+    @State private var showRangePicker = false
     @State private var showAddTransaction = false
     @State private var showQuickAdd = false
     @State private var transactionToEdit: CDTransaction?
@@ -37,98 +36,67 @@ struct LogView: View {
                 VStack(spacing: 0) {
                     // Filters
                     VStack(spacing: 12) {
-                        CyberSearchBar(text: $searchText)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                CyberFilterButton(
-                                    title: selectedMonth?.title ?? "Month",
-                                    isActive: selectedMonth != nil
-                                ) {
-                                    // Month picker handled by menu
-                                }
-                                .overlay {
-                                    Menu {
-                                        Button("All Months") {
-                                            selectedMonth = nil
-                                        }
-                                        ForEach(availableMonths, id: \.self) { month in
-                                            Button(month.title) {
-                                                selectedMonth = month
-                                            }
-                                        }
-                                    } label: {
-                                        Color.clear
-                                    }
-                                }
-
-                                CyberFilterButton(
-                                    title: selectedCategory?.rawValue ?? "Category",
-                                    isActive: selectedCategory != nil
-                                ) { }
-                                .overlay {
-                                    Menu {
-                                        Button("All Categories") {
-                                            selectedCategory = nil
-                                        }
-                                        ForEach(MoneyCategory.allCases) { category in
-                                            Button(category.rawValue) {
-                                                selectedCategory = category
-                                            }
-                                        }
-                                    } label: {
-                                        Color.clear
-                                    }
-                                }
-
-                                CyberFilterButton(
-                                    title: selectedPaymentMethod?.rawValue ?? "Payment",
-                                    isActive: selectedPaymentMethod != nil
-                                ) { }
-                                .overlay {
-                                    Menu {
-                                        Button("All Methods") {
-                                            selectedPaymentMethod = nil
-                                        }
-                                        ForEach(PaymentMethod.allCases) { method in
-                                            Button(method.rawValue) {
-                                                selectedPaymentMethod = method
-                                            }
-                                        }
-                                    } label: {
-                                        Color.clear
-                                    }
-                                }
-
-                                CyberFilterButton(
-                                    title: startDate.map { dateLabel($0) } ?? "From",
-                                    isActive: startDate != nil
-                                ) {
-                                    showStartDatePicker = true
-                                }
-
-                                CyberFilterButton(
-                                    title: endDate.map { dateLabel($0) } ?? "To",
-                                    isActive: endDate != nil
-                                ) {
-                                    showEndDatePicker = true
-                                }
-
-                                if selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || !searchText.isEmpty || startDate != nil || endDate != nil {
-                                    Button("Clear") {
-                                        selectedCategory = nil
-                                        selectedPaymentMethod = nil
-                                        selectedMonth = nil
-                                        startDate = nil
-                                        endDate = nil
-                                        searchText = ""
-                                    }
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.neonPink)
-                                }
+                        CyberSearchBar(
+                            text: $searchText,
+                            hasActiveFilters: selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || startDate != nil,
+                            onClearAll: {
+                                selectedCategory = nil
+                                selectedPaymentMethod = nil
+                                selectedMonth = nil
+                                startDate = nil
+                                endDate = nil
+                                searchText = ""
                             }
-                            .padding(.horizontal)
+                        )
+
+                        HStack(spacing: 10) {
+                            CyberFilterButton(
+                                title: selectedMonth?.title ?? "Month",
+                                isActive: selectedMonth != nil
+                            ) { }
+                            .overlay {
+                                Menu {
+                                    Button("All Months") { selectedMonth = nil }
+                                    ForEach(availableMonths, id: \.self) { month in
+                                        Button(month.title) { selectedMonth = month }
+                                    }
+                                } label: { Color.clear }
+                            }
+
+                            CyberFilterButton(
+                                title: selectedCategory?.rawValue ?? "Category",
+                                isActive: selectedCategory != nil
+                            ) { }
+                            .overlay {
+                                Menu {
+                                    Button("All Categories") { selectedCategory = nil }
+                                    ForEach(MoneyCategory.allCases) { category in
+                                        Button(category.rawValue) { selectedCategory = category }
+                                    }
+                                } label: { Color.clear }
+                            }
+
+                            CyberFilterButton(
+                                title: selectedPaymentMethod?.rawValue ?? "Payment",
+                                isActive: selectedPaymentMethod != nil
+                            ) { }
+                            .overlay {
+                                Menu {
+                                    Button("All Methods") { selectedPaymentMethod = nil }
+                                    ForEach(PaymentMethod.allCases) { method in
+                                        Button(method.rawValue) { selectedPaymentMethod = method }
+                                    }
+                                } label: { Color.clear }
+                            }
+
+                            CyberFilterButton(
+                                title: rangeLabel,
+                                isActive: startDate != nil
+                            ) {
+                                showRangePicker = true
+                            }
+
+                            Spacer(minLength: 0)
                         }
                     }
                     .padding(.vertical, 12)
@@ -181,27 +149,8 @@ struct LogView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showStartDatePicker) {
-                CyberDatePickerSheet(
-                    title: "From Date",
-                    selected: Binding(
-                        get: { startDate ?? Date() },
-                        set: { startDate = $0 }
-                    )
-                ) {
-                    showStartDatePicker = false
-                }
-            }
-            .sheet(isPresented: $showEndDatePicker) {
-                CyberDatePickerSheet(
-                    title: "To Date",
-                    selected: Binding(
-                        get: { endDate ?? Date() },
-                        set: { endDate = $0 }
-                    )
-                ) {
-                    showEndDatePicker = false
-                }
+            .sheet(isPresented: $showRangePicker) {
+                CyberRangePickerSheet(startDate: $startDate, endDate: $endDate)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
@@ -236,6 +185,107 @@ struct LogView: View {
         let f = DateFormatter()
         f.dateFormat = "MMM d"
         return f.string(from: date)
+    }
+
+    private var rangeLabel: String {
+        guard let start = startDate else { return "Range" }
+        let startStr = dateLabel(start)
+        if let end = endDate { return "\(startStr) – \(dateLabel(end))" }
+        return "From \(startStr)"
+    }
+}
+
+// MARK: - Cyber Range Picker Sheet
+struct CyberRangePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var startDate: Date?
+    @Binding var endDate: Date?
+
+    @State private var localStart: Date = Date()
+    @State private var localEnd: Date = Date()
+    @State private var hasEndDate: Bool = false
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.cyberBlack.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 24) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            CyberSectionHeader(title: "Start Date")
+                            DatePicker("", selection: $localStart, displayedComponents: .date)
+                                .datePickerStyle(.graphical)
+                                .colorScheme(.dark)
+                                .tint(.neonGreen)
+                        }
+                        .padding()
+                        .cyberCard()
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle(isOn: $hasEndDate) {
+                                Text("Set End Date")
+                                    .foregroundColor(.white)
+                            }
+                            .toggleStyle(SwitchToggleStyle(tint: .neonGreen))
+
+                            if hasEndDate {
+                                DatePicker("", selection: $localEnd, in: localStart..., displayedComponents: .date)
+                                    .datePickerStyle(.graphical)
+                                    .colorScheme(.dark)
+                                    .tint(.neonGreen)
+                            }
+                        }
+                        .padding()
+                        .cyberCard()
+
+                        Button {
+                            startDate = localStart
+                            endDate = hasEndDate ? localEnd : nil
+                            dismiss()
+                        } label: {
+                            Text("Apply Range")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.cyberBlack)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.neonGreen)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .shadow(color: .neonGreenGlow, radius: 10)
+                        }
+
+                        if startDate != nil {
+                            Button("Clear Range") {
+                                startDate = nil
+                                endDate = nil
+                                dismiss()
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.neonPink)
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .cyberNavTitle("Date Range")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(.neonGreen)
+                }
+            }
+            .onAppear {
+                localStart = startDate ?? Date()
+                if let end = endDate {
+                    localEnd = end
+                    hasEndDate = true
+                } else {
+                    localEnd = Date()
+                    hasEndDate = false
+                }
+            }
+        }
     }
 }
 
@@ -275,15 +325,17 @@ struct CyberDatePickerSheet: View {
 // MARK: - Cyberpunk Search Bar
 struct CyberSearchBar: View {
     @Binding var text: String
-    
+    var hasActiveFilters: Bool = false
+    var onClearAll: (() -> Void)? = nil
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.neonGreen.opacity(0.7))
-            
+
             TextField("Search merchant or notes", text: $text)
                 .foregroundColor(.white)
-            
+
             if !text.isEmpty {
                 Button {
                     text = ""
@@ -291,6 +343,13 @@ struct CyberSearchBar: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white.opacity(0.5))
                 }
+            }
+
+            if hasActiveFilters || !text.isEmpty, let onClearAll {
+                Button("Clear") { onClearAll() }
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.neonPink)
             }
         }
         .padding(12)
