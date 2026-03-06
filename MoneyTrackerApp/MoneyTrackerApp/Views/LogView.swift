@@ -36,67 +36,92 @@ struct LogView: View {
                 VStack(spacing: 0) {
                     // Filters
                     VStack(spacing: 12) {
-                        CyberSearchBar(
-                            text: $searchText,
-                            hasActiveFilters: selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || startDate != nil,
-                            onClearAll: {
-                                selectedCategory = nil
-                                selectedPaymentMethod = nil
-                                selectedMonth = nil
-                                startDate = nil
-                                endDate = nil
-                                searchText = ""
-                            }
-                        )
+                        HStack(spacing: 8) {
+                            CyberSearchBar(text: $searchText)
 
-                        HStack(spacing: 10) {
-                            CyberFilterButton(
-                                title: selectedMonth?.title ?? "Month",
-                                isActive: selectedMonth != nil
-                            ) { }
-                            .overlay {
-                                Menu {
-                                    Button("All Months") { selectedMonth = nil }
-                                    ForEach(availableMonths, id: \.self) { month in
-                                        Button(month.title) { selectedMonth = month }
+                            let hasActiveFilters = selectedCategory != nil || selectedPaymentMethod != nil || selectedMonth != nil || startDate != nil || !searchText.isEmpty
+                            if hasActiveFilters {
+                                Button {
+                                    selectedCategory = nil
+                                    selectedPaymentMethod = nil
+                                    selectedMonth = nil
+                                    startDate = nil
+                                    endDate = nil
+                                    searchText = ""
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color(red: 0.85, green: 0.15, blue: 0.15))
+                                            .frame(width: 24, height: 24)
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundColor(.black)
                                     }
-                                } label: { Color.clear }
+                                    .padding(11)
+                                    .background(Color.cyberDarkGray)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color(red: 0.85, green: 0.15, blue: 0.15), lineWidth: 1)
+                                    )
+                                }
+                            }
+                        }
+
+                        VStack(spacing: 8) {
+                            HStack(spacing: 8) {
+                                CyberFilterButton(
+                                    title: selectedMonth?.title ?? "Month",
+                                    isActive: selectedMonth != nil
+                                ) { }
+                                .frame(maxWidth: .infinity)
+                                .overlay {
+                                    Menu {
+                                        Button("All Months") { selectedMonth = nil }
+                                        ForEach(availableMonths, id: \.self) { month in
+                                            Button(month.title) { selectedMonth = month }
+                                        }
+                                    } label: { Color.clear }
+                                }
+
+                                CyberFilterButton(
+                                    title: selectedCategory?.rawValue ?? "Category",
+                                    isActive: selectedCategory != nil
+                                ) { }
+                                .frame(maxWidth: .infinity)
+                                .overlay {
+                                    Menu {
+                                        Button("All Categories") { selectedCategory = nil }
+                                        ForEach(MoneyCategory.allCases) { category in
+                                            Button(category.rawValue) { selectedCategory = category }
+                                        }
+                                    } label: { Color.clear }
+                                }
                             }
 
-                            CyberFilterButton(
-                                title: selectedCategory?.rawValue ?? "Category",
-                                isActive: selectedCategory != nil
-                            ) { }
-                            .overlay {
-                                Menu {
-                                    Button("All Categories") { selectedCategory = nil }
-                                    ForEach(MoneyCategory.allCases) { category in
-                                        Button(category.rawValue) { selectedCategory = category }
-                                    }
-                                } label: { Color.clear }
-                            }
+                            HStack(spacing: 8) {
+                                CyberFilterButton(
+                                    title: selectedPaymentMethod?.rawValue ?? "Payment",
+                                    isActive: selectedPaymentMethod != nil
+                                ) { }
+                                .frame(maxWidth: .infinity)
+                                .overlay {
+                                    Menu {
+                                        Button("All Methods") { selectedPaymentMethod = nil }
+                                        ForEach(PaymentMethod.allCases) { method in
+                                            Button(method.rawValue) { selectedPaymentMethod = method }
+                                        }
+                                    } label: { Color.clear }
+                                }
 
-                            CyberFilterButton(
-                                title: selectedPaymentMethod?.rawValue ?? "Payment",
-                                isActive: selectedPaymentMethod != nil
-                            ) { }
-                            .overlay {
-                                Menu {
-                                    Button("All Methods") { selectedPaymentMethod = nil }
-                                    ForEach(PaymentMethod.allCases) { method in
-                                        Button(method.rawValue) { selectedPaymentMethod = method }
-                                    }
-                                } label: { Color.clear }
+                                CyberFilterButton(
+                                    title: rangeLabel,
+                                    isActive: startDate != nil
+                                ) {
+                                    showRangePicker = true
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-
-                            CyberFilterButton(
-                                title: rangeLabel,
-                                isActive: startDate != nil
-                            ) {
-                                showRangePicker = true
-                            }
-
-                            Spacer(minLength: 0)
                         }
                     }
                     .padding(.vertical, 12)
@@ -325,8 +350,6 @@ struct CyberDatePickerSheet: View {
 // MARK: - Cyberpunk Search Bar
 struct CyberSearchBar: View {
     @Binding var text: String
-    var hasActiveFilters: Bool = false
-    var onClearAll: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -343,13 +366,6 @@ struct CyberSearchBar: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white.opacity(0.5))
                 }
-            }
-
-            if hasActiveFilters || !text.isEmpty, let onClearAll {
-                Button("Clear") { onClearAll() }
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.neonPink)
             }
         }
         .padding(12)
@@ -372,6 +388,8 @@ struct CyberFilterButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(title)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
                     .font(.caption2)
             }
@@ -379,7 +397,8 @@ struct CyberFilterButton: View {
             .fontWeight(.medium)
             .foregroundColor(isActive ? .cyberBlack : .neonGreen)
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
             .background(isActive ? Color.neonGreen : Color.cyberGray)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
