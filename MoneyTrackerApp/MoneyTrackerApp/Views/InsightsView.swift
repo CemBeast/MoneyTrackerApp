@@ -30,6 +30,27 @@ struct InsightsView: View {
         InsightsStats(context: viewContext)
     }
 
+    private var rangeStatTitle: String {
+        guard let start = rangeStart else { return "Average Monthly Spending" }
+        let f = DateFormatter(); f.dateFormat = "MMM d"
+        if let end = rangeEnd { return "Total Spent (\(f.string(from: start)) – \(f.string(from: end)))" }
+        return "Total Spent (From \(f.string(from: start)))"
+    }
+
+    private var rangeStatValue: Double {
+        guard let start = rangeStart else { return stats.averagePerMonthOverall() }
+        let startOfDay = Calendar.current.startOfDay(for: start)
+        let endOfDay: Date = rangeEnd.map {
+            Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: $0)) ?? $0
+        } ?? Date.distantFuture
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
+        )
+        return ((try? viewContext.fetch(request)) ?? []).reduce(0.0) { $0 + $1.amount }
+    }
+
     private var rangeLabel: String {
         guard let start = rangeStart else { return "Range" }
         let f = DateFormatter(); f.dateFormat = "MMM d"
@@ -44,29 +65,11 @@ struct InsightsView: View {
 
                 ScrollView {
                     VStack(spacing: 24) {
-                        if let start = rangeStart {
-                            let f = DateFormatter(); f.dateFormat = "MMM d"
-                            let label = rangeEnd.map { "Total Spent (\(f.string(from: start)) – \(f.string(from: $0)))" }
-                                ?? "Total Spent (From \(f.string(from: start)))"
-                            let startOfDay = Calendar.current.startOfDay(for: start)
-                            let endOfDay: Date = rangeEnd.map {
-                                Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: $0)) ?? $0
-                            } ?? Date.distantFuture
-                            let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-                            request.predicate = NSPredicate(
-                                format: "date >= %@ AND date < %@ AND typeRaw == %d",
-                                startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
-                            )
-                            let total = ((try? viewContext.fetch(request)) ?? []).reduce(0.0) { $0 + $1.amount }
-                            CyberStatCard(title: label, value: currencyViewModel.format(amountInBase: total))
-                                .id("range-total-\(transactionSignature)-\(start.timeIntervalSince1970)")
-                        } else {
-                            CyberStatCard(
-                                title: "Average Monthly Spending",
-                                value: currencyViewModel.format(amountInBase: stats.averagePerMonthOverall())
-                            )
-                            .id("avg-\(transactionSignature)")
-                        }
+                        CyberStatCard(
+                            title: rangeStatTitle,
+                            value: currencyViewModel.format(amountInBase: rangeStatValue)
+                        )
+                        .id("stat-\(transactionSignature)-\(rangeStart?.timeIntervalSince1970 ?? 0)")
 
                         CyberCategoryAveragesView(
                             stats: stats,
