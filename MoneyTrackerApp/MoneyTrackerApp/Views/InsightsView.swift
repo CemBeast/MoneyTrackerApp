@@ -6,75 +6,133 @@ struct InsightsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject var currencyViewModel: CurrencyViewModel
     @State private var selectedMonth: MonthKey?
-    
+    @State private var rangeStart: Date?
+    @State private var rangeEnd: Date?
+    @State private var showRangePicker = false
+
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)]
     )
     private var allTransactions: FetchedResults<CDTransaction>
-    
+
     private var availableMonths: [MonthKey] {
         let months = Set(allTransactions.map { $0.date.monthKey() })
         return Array(months).sorted(by: >)
     }
-    
-    // Used to force UI refresh when any transaction field changes
+
     private var transactionSignature: String {
         allTransactions.map {
             "\($0.id.uuidString)-\($0.amount)-\($0.categoryRaw)-\($0.paymentMethodRaw ?? "")-\($0.date.timeIntervalSince1970)-\($0.notes ?? "")"
         }.joined(separator: "|")
     }
-    
+
     private var stats: InsightsStats {
         InsightsStats(context: viewContext)
     }
-    
+
+    private var rangeLabel: String {
+        guard let start = rangeStart else { return "Range" }
+        let f = DateFormatter(); f.dateFormat = "MMM d"
+        if let end = rangeEnd { return "\(f.string(from: start)) – \(f.string(from: end))" }
+        return "From \(f.string(from: start))"
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
                 Color.cyberBlack.ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Overall average
-                        CyberStatCard(
-                            title: "Average Monthly Spending",
-                            value: currencyViewModel.format(amountInBase: stats.averagePerMonthOverall())
+                        if let start = rangeStart {
+                            let f = DateFormatter(); f.dateFormat = "MMM d"
+                            let label = rangeEnd.map { "Total Spent (\(f.string(from: start)) – \(f.string(from: $0)))" }
+                                ?? "Total Spent (From \(f.string(from: start)))"
+                            let startOfDay = Calendar.current.startOfDay(for: start)
+                            let endOfDay: Date = rangeEnd.map {
+                                Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: $0)) ?? $0
+                            } ?? Date.distantFuture
+                            let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+                            request.predicate = NSPredicate(
+                                format: "date >= %@ AND date < %@ AND typeRaw == %d",
+                                startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
+                            )
+                            let total = ((try? viewContext.fetch(request)) ?? []).reduce(0.0) { $0 + $1.amount }
+                            CyberStatCard(title: label, value: currencyViewModel.format(amountInBase: total))
+                                .id("range-total-\(transactionSignature)-\(start.timeIntervalSince1970)")
+                        } else {
+                            CyberStatCard(
+                                title: "Average Monthly Spending",
+                                value: currencyViewModel.format(amountInBase: stats.averagePerMonthOverall())
+                            )
+                            .id("avg-\(transactionSignature)")
+                        }
+
+                        CyberCategoryAveragesView(
+                            stats: stats,
+                            rangeStart: rangeStart,
+                            rangeEnd: rangeEnd,
+                            transactionSignature: transactionSignature
                         )
-                    .id("avg-\(transactionSignature)")
-                        
-                        // Category averages
-                    CyberCategoryAveragesView(stats: stats, transactionSignature: transactionSignature)
-                        
-                        // Percentages
-                    CyberPercentagesView(stats: stats, selectedMonth: selectedMonth, transactionSignature: transactionSignature)
-                        
-                        // Charts
-                    CyberChartsView(stats: stats, availableMonths: availableMonths, selectedMonth: selectedMonth, transactionSignature: transactionSignature)
+
+                        CyberPercentagesView(
+                            stats: stats,
+                            selectedMonth: rangeStart == nil ? selectedMonth : nil,
+                            rangeStart: rangeStart,
+                            rangeEnd: rangeEnd,
+                            transactionSignature: transactionSignature
+                        )
+
+                        CyberChartsView(
+                            stats: stats,
+                            availableMonths: availableMonths,
+                            selectedMonth: rangeStart == nil ? selectedMonth : nil,
+                            rangeStart: rangeStart,
+                            rangeEnd: rangeEnd,
+                            transactionSignature: transactionSignature
+                        )
                     }
                     .padding()
                 }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button("All Time") {
-                            selectedMonth = nil
+                    HStack(spacing: 12) {
+                        // Range picker button
+                        Button {
+                            showRangePicker = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(rangeLabel)
+                                    .font(.caption)
+                                Image(systemName: "calendar")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(rangeStart != nil ? .neonGreen : .neonGreen.opacity(0.6))
                         }
-                        ForEach(availableMonths, id: \.self) { month in
-                            Button(month.title) {
-                                selectedMonth = month
+
+                        // Month menu (disabled when range is active)
+                        if rangeStart == nil {
+                            Menu {
+                                Button("All Time") { selectedMonth = nil }
+                                ForEach(availableMonths, id: \.self) { month in
+                                    Button(month.title) { selectedMonth = month }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(selectedMonth?.title ?? "All Time")
+                                        .font(.caption)
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption2)
+                                }
+                                .foregroundColor(.neonGreen)
                             }
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(selectedMonth?.title ?? "All Time")
-                                .font(.caption)
-                            Image(systemName: "chevron.down")
-                                .font(.caption2)
-                        }
-                        .foregroundColor(.neonGreen)
                     }
                 }
+            }
+            .sheet(isPresented: $showRangePicker) {
+                CyberRangePickerSheet(startDate: $rangeStart, endDate: $rangeEnd)
             }
         }
     }
@@ -108,17 +166,46 @@ struct CyberStatCard: View {
 struct CyberCategoryAveragesView: View {
     @EnvironmentObject var currencyViewModel: CurrencyViewModel
     let stats: InsightsStats
+    let rangeStart: Date?
+    let rangeEnd: Date?
     let transactionSignature: String
+
+    private var rangeTotals: [MoneyCategory: Double]? {
+        guard let start = rangeStart else { return nil }
+        let startOfDay = Calendar.current.startOfDay(for: start)
+        let endOfDay: Date
+        if let end = rangeEnd {
+            endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: end)) ?? end
+        } else {
+            endOfDay = Date.distantFuture
+        }
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
+        )
+        guard let txns = try? stats.context.fetch(request) else { return nil }
+        var totals: [MoneyCategory: Double] = [:]
+        for t in txns { totals[t.category, default: 0] += t.amount }
+        return totals
+    }
+
+    private var sectionTitle: String {
+        guard let start = rangeStart else { return "Monthly Averages" }
+        let f = DateFormatter(); f.dateFormat = "MMM d"
+        if let end = rangeEnd { return "Spending (\(f.string(from: start)) – \(f.string(from: end)))" }
+        return "Spending (From \(f.string(from: start)))"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CyberSectionHeader(title: "Monthly Averages")
-            
-            let averages = stats.averagePerMonthPerCategory()
-            
+            CyberSectionHeader(title: sectionTitle)
+
+            let values: [MoneyCategory: Double] = rangeTotals ?? stats.averagePerMonthPerCategory()
+
             VStack(spacing: 12) {
                 ForEach(MoneyCategory.allCases) { category in
-                    if let avg = averages[category], avg > 0 {
+                    if let val = values[category], val > 0 {
                         HStack {
                             HStack(spacing: 8) {
                                 Circle()
@@ -128,7 +215,7 @@ struct CyberCategoryAveragesView: View {
                                     .foregroundColor(.white.opacity(0.8))
                             }
                             Spacer()
-                            Text(currencyViewModel.format(amountInBase: avg))
+                            Text(currencyViewModel.format(amountInBase: val))
                                 .font(.subheadline)
                                 .fontWeight(.bold)
                                 .foregroundColor(category.color)
@@ -139,23 +226,52 @@ struct CyberCategoryAveragesView: View {
             .padding()
             .cyberCard()
         }
-        .id("category-avg-\(transactionSignature)")
+        .id("category-avg-\(transactionSignature)-\(rangeStart?.timeIntervalSince1970 ?? 0)")
     }
 }
 
 struct CyberPercentagesView: View {
     let stats: InsightsStats
     let selectedMonth: MonthKey?
+    let rangeStart: Date?
+    let rangeEnd: Date?
     let transactionSignature: String
-    
+
+    private func rangePercents() -> [MoneyCategory: Double]? {
+        guard let start = rangeStart else { return nil }
+        let startOfDay = Calendar.current.startOfDay(for: start)
+        let endOfDay: Date = rangeEnd.map {
+            Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: $0)) ?? $0
+        } ?? Date.distantFuture
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
+        )
+        guard let txns = try? stats.context.fetch(request) else { return nil }
+        var totals: [MoneyCategory: Double] = [:]
+        for t in txns { totals[t.category, default: 0] += t.amount }
+        let grand = totals.values.reduce(0, +)
+        guard grand > 0 else { return nil }
+        return totals.mapValues { ($0 / grand) * 100 }
+    }
+
+    private var sectionTitle: String {
+        if let start = rangeStart {
+            let f = DateFormatter(); f.dateFormat = "MMM d"
+            if let end = rangeEnd { return "Distribution (\(f.string(from: start)) – \(f.string(from: end)))" }
+            return "Distribution (From \(f.string(from: start)))"
+        }
+        return selectedMonth == nil ? "Spending Distribution" : "Distribution (\(selectedMonth!.title))"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CyberSectionHeader(title: selectedMonth == nil ? "Spending Distribution" : "Distribution (\(selectedMonth!.title))")
-            
-            let percents = selectedMonth == nil
-                ? stats.percentPerCategoryOverall()
-                : stats.percentPerCategoryForMonth(selectedMonth!)
-            
+            CyberSectionHeader(title: sectionTitle)
+
+            let percents: [MoneyCategory: Double] = rangePercents()
+                ?? (selectedMonth == nil ? stats.percentPerCategoryOverall() : stats.percentPerCategoryForMonth(selectedMonth!))
+
             VStack(spacing: 14) {
                 ForEach(MoneyCategory.allCases) { category in
                     if let percent = percents[category], percent > 0 {
@@ -175,11 +291,7 @@ struct CyberPercentagesView: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(category.color)
                             }
-                            
-                            CyberProgressBar(
-                                progress: percent / 100,
-                                barColor: category.color
-                            )
+                            CyberProgressBar(progress: percent / 100, barColor: category.color)
                         }
                     }
                 }
@@ -187,7 +299,7 @@ struct CyberPercentagesView: View {
             .padding()
             .cyberCard()
         }
-        .id("percentages-\(transactionSignature)-\(selectedMonth?.title ?? "all")")
+        .id("percentages-\(transactionSignature)-\(selectedMonth?.title ?? "all")-\(rangeStart?.timeIntervalSince1970 ?? 0)")
     }
 }
 
@@ -195,23 +307,34 @@ struct CyberChartsView: View {
     let stats: InsightsStats
     let availableMonths: [MonthKey]
     let selectedMonth: MonthKey?
+    let rangeStart: Date?
+    let rangeEnd: Date?
     let transactionSignature: String
-    
+
     var body: some View {
         VStack(spacing: 24) {
-            // Last 6 months bar chart
             CyberLast6MonthsChart(stats: stats, availableMonths: availableMonths)
                 .id("last6-\(transactionSignature)")
-            
-            // Category pie chart
-            CyberCategoryPieChart(stats: stats, selectedMonth: selectedMonth, transactionSignature: transactionSignature)
-                .id("pie-category-\(transactionSignature)-\(selectedMonth?.title ?? "all")")
-            
-            // Payment method pie chart
-            CyberPaymentMethodPieChart(stats: stats, selectedMonth: selectedMonth, transactionSignature: transactionSignature)
-                .id("pie-payment-\(transactionSignature)-\(selectedMonth?.title ?? "all")")
+
+            CyberCategoryPieChart(
+                stats: stats,
+                selectedMonth: selectedMonth,
+                rangeStart: rangeStart,
+                rangeEnd: rangeEnd,
+                transactionSignature: transactionSignature
+            )
+            .id("pie-category-\(transactionSignature)-\(selectedMonth?.title ?? "all")-\(rangeStart?.timeIntervalSince1970 ?? 0)")
+
+            CyberPaymentMethodPieChart(
+                stats: stats,
+                selectedMonth: selectedMonth,
+                rangeStart: rangeStart,
+                rangeEnd: rangeEnd,
+                transactionSignature: transactionSignature
+            )
+            .id("pie-payment-\(transactionSignature)-\(selectedMonth?.title ?? "all")-\(rangeStart?.timeIntervalSince1970 ?? 0)")
         }
-        .id("charts-\(transactionSignature)-\(selectedMonth?.title ?? "all")")
+        .id("charts-\(transactionSignature)-\(selectedMonth?.title ?? "all")-\(rangeStart?.timeIntervalSince1970 ?? 0)")
     }
 }
 
@@ -284,56 +407,65 @@ struct CyberLast6MonthsChart: View {
 struct CyberCategoryPieChart: View {
     let stats: InsightsStats
     let selectedMonth: MonthKey?
+    let rangeStart: Date?
+    let rangeEnd: Date?
     let transactionSignature: String
-    
+
+    private func fetchAmounts(start: Date, end: Date) -> [MoneyCategory: Double] {
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            start as NSDate, end as NSDate, TransactionType.expense.rawValue
+        )
+        var totals: [MoneyCategory: Double] = [:]
+        for t in (try? stats.context.fetch(request)) ?? [] {
+            totals[t.category, default: 0] += t.amount
+        }
+        return totals
+    }
+
     private var chartData: [(category: String, amount: Double, percent: Double, color: Color)] {
-        let percents: [MoneyCategory: Double]
         let amounts: [MoneyCategory: Double]
-        
-        if let month = selectedMonth {
+        let percents: [MoneyCategory: Double]
+
+        if let start = rangeStart {
+            let s = Calendar.current.startOfDay(for: start)
+            let e: Date = rangeEnd.map { Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: $0)) ?? $0 } ?? Date.distantFuture
+            amounts = fetchAmounts(start: s, end: e)
+            let grand = amounts.values.reduce(0, +)
+            guard grand > 0 else { return [] }
+            percents = amounts.mapValues { ($0 / grand) * 100 }
+        } else if let month = selectedMonth {
             percents = stats.percentPerCategoryForMonth(month)
-            // Get amounts for the selected month
             let startDate = month.startDate
             let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
-            let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-            request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d",
-                                           startDate as NSDate,
-                                           endDate as NSDate,
-                                           TransactionType.expense.rawValue)
-            
-            if let transactions = try? stats.context.fetch(request) {
-                var totals: [MoneyCategory: Double] = [:]
-                for transaction in transactions {
-                    totals[transaction.category, default: 0] += transaction.amount
-                }
-                amounts = totals
-            } else {
-                amounts = [:]
-            }
+            amounts = fetchAmounts(start: startDate, end: endDate)
         } else {
             amounts = stats.allTimeTotalsPerCategory()
             let grandTotal = amounts.values.reduce(0, +)
             guard grandTotal > 0 else { return [] }
             percents = amounts.mapValues { ($0 / grandTotal) * 100 }
         }
-        
+
         guard !percents.isEmpty else { return [] }
-        
         return percents.compactMap { category, percent in
             guard percent > 0 else { return nil }
-            let color = category.color
-            return (
-                category: category.rawValue,
-                amount: amounts[category] ?? 0,
-                percent: percent,
-                color: color
-            )
+            return (category: category.rawValue, amount: amounts[category] ?? 0, percent: percent, color: category.color)
         }.sorted { $0.amount > $1.amount }
     }
-    
+
+    private var sectionTitle: String {
+        if let start = rangeStart {
+            let f = DateFormatter(); f.dateFormat = "MMM d"
+            if let end = rangeEnd { return "Distribution (\(f.string(from: start)) – \(f.string(from: end)))" }
+            return "Distribution (From \(f.string(from: start)))"
+        }
+        return selectedMonth == nil ? "Category Distribution" : "Distribution (\(selectedMonth!.title))"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CyberSectionHeader(title: selectedMonth == nil ? "Category Distribution" : "Distribution (\(selectedMonth!.title))")
+            CyberSectionHeader(title: sectionTitle)
             
             VStack(spacing: 16) {
                 if #available(iOS 16.0, *) {
@@ -394,56 +526,65 @@ struct CyberCategoryPieChart: View {
 struct CyberPaymentMethodPieChart: View {
     let stats: InsightsStats
     let selectedMonth: MonthKey?
+    let rangeStart: Date?
+    let rangeEnd: Date?
     let transactionSignature: String
-    
+
+    private func fetchAmounts(start: Date, end: Date) -> [PaymentMethod: Double] {
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            start as NSDate, end as NSDate, TransactionType.expense.rawValue
+        )
+        var totals: [PaymentMethod: Double] = [:]
+        for t in (try? stats.context.fetch(request)) ?? [] {
+            totals[t.paymentMethod, default: 0] += t.amount
+        }
+        return totals
+    }
+
     private var chartData: [(method: String, amount: Double, percent: Double, color: Color)] {
-        let percents: [PaymentMethod: Double]
         let amounts: [PaymentMethod: Double]
-        
-        if let month = selectedMonth {
+        let percents: [PaymentMethod: Double]
+
+        if let start = rangeStart {
+            let s = Calendar.current.startOfDay(for: start)
+            let e: Date = rangeEnd.map { Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: $0)) ?? $0 } ?? Date.distantFuture
+            amounts = fetchAmounts(start: s, end: e)
+            let grand = amounts.values.reduce(0, +)
+            guard grand > 0 else { return [] }
+            percents = amounts.mapValues { ($0 / grand) * 100 }
+        } else if let month = selectedMonth {
             percents = stats.percentPerPaymentMethodForMonth(month)
-            // Get amounts for the selected month
             let startDate = month.startDate
             let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
-            let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-            request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d",
-                                           startDate as NSDate,
-                                           endDate as NSDate,
-                                           TransactionType.expense.rawValue)
-            
-            if let transactions = try? stats.context.fetch(request) {
-                var totals: [PaymentMethod: Double] = [:]
-                for transaction in transactions {
-                    totals[transaction.paymentMethod, default: 0] += transaction.amount
-                }
-                amounts = totals
-            } else {
-                amounts = [:]
-            }
+            amounts = fetchAmounts(start: startDate, end: endDate)
         } else {
             amounts = stats.allTimeTotalsPerPaymentMethod()
             let grandTotal = amounts.values.reduce(0, +)
             guard grandTotal > 0 else { return [] }
             percents = amounts.mapValues { ($0 / grandTotal) * 100 }
         }
-        
+
         guard !percents.isEmpty else { return [] }
-        
         return percents.compactMap { method, percent in
             guard percent > 0 else { return nil }
-            let color = paymentMethodColor(method)
-            return (
-                method: method.rawValue,
-                amount: amounts[method] ?? 0,
-                percent: percent,
-                color: color
-            )
+            return (method: method.rawValue, amount: amounts[method] ?? 0, percent: percent, color: paymentMethodColor(method))
         }.sorted { $0.amount > $1.amount }
     }
-    
+
+    private var sectionTitle: String {
+        if let start = rangeStart {
+            let f = DateFormatter(); f.dateFormat = "MMM d"
+            if let end = rangeEnd { return "Payment Methods (\(f.string(from: start)) – \(f.string(from: end)))" }
+            return "Payment Methods (From \(f.string(from: start)))"
+        }
+        return selectedMonth == nil ? "Payment Method Distribution" : "Payment Methods (\(selectedMonth!.title))"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CyberSectionHeader(title: selectedMonth == nil ? "Payment Method Distribution" : "Payment Methods (\(selectedMonth!.title))")
+            CyberSectionHeader(title: sectionTitle)
             
             VStack(spacing: 16) {
                 if #available(iOS 16.0, *) {
