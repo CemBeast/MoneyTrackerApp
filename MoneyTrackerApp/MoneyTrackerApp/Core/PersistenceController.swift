@@ -96,13 +96,17 @@ final class PersistenceController {
         txn.properties = [
             attr("id", .UUIDAttributeType, optional: false),
             attr("date", .dateAttributeType, optional: false),
-            attr("amount", .doubleAttributeType, optional: false),
+            attr("amount", .doubleAttributeType, optional: false), // frozen USD-equivalent at log time
             attr("categoryRaw", .stringAttributeType, optional: false),
             attr("merchant", .stringAttributeType, optional: true),
             attr("paymentMethodRaw", .stringAttributeType, optional: true),
             attr("notes", .stringAttributeType, optional: true),
             // 0=expense, 1=income, 2=transfer (UI can focus on expense)
             attr("typeRaw", .integer16AttributeType, optional: false),
+
+            // Original-currency snapshot. Nil currency = legacy USD-only row (treat amount as USD).
+            attr("originalCurrencyRaw", .stringAttributeType, optional: true),
+            attr("originalAmount", .doubleAttributeType, optional: false, defaultValue: 0.0),
 
             // Recurring (templates)
             attr("isRecurring", .booleanAttributeType, optional: false),
@@ -134,11 +138,14 @@ final class PersistenceController {
         return model
     }
 
-    private static func attr(_ name: String, _ type: NSAttributeType, optional: Bool) -> NSAttributeDescription {
+    private static func attr(_ name: String, _ type: NSAttributeType, optional: Bool, defaultValue: Any? = nil) -> NSAttributeDescription {
         let a = NSAttributeDescription()
         a.name = name
         a.attributeType = type
         a.isOptional = optional
+        if let defaultValue {
+            a.defaultValue = defaultValue
+        }
         return a
     }
 }

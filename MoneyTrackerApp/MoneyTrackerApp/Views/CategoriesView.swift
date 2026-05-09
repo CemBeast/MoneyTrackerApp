@@ -24,6 +24,17 @@ struct CategoriesView: View {
     private var grandTotal: Double {
         categoryTotals.values.reduce(0, +)
     }
+
+    private var firstTransactionDate: Date? {
+        allTransactions.last?.date
+    }
+
+    private var headerLabel: String {
+        guard let date = firstTransactionDate else { return "ALL-TIME SPENDING" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return "ALL-TIME SPENDING SINCE \(formatter.string(from: date).uppercased())"
+    }
     
     private func categoryIcon(_ category: MoneyCategory) -> String {
         switch category {
@@ -52,11 +63,12 @@ struct CategoriesView: View {
                     VStack(spacing: 20) {
                         // Total header
                         VStack(spacing: 8) {
-                            Text("ALL-TIME SPENDING")
+                            Text(headerLabel)
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white.opacity(0.5))
                                 .tracking(2)
+                                .multilineTextAlignment(.center)
                             
                             Text(currencyViewModel.format(amountInBase: grandTotal))
                                 .font(.system(size: 36, weight: .bold, design: .monospaced))

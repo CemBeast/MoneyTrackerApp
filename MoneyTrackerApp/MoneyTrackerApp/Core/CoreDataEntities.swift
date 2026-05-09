@@ -11,12 +11,18 @@ extension CDTransaction {
 
     @NSManaged public var id: UUID
     @NSManaged public var date: Date
+    /// Frozen USD-equivalent at log time. Snapshotted via originalAmount * rateToUSD when saved.
     @NSManaged public var amount: Double
     @NSManaged public var categoryRaw: String
     @NSManaged public var merchant: String?
     @NSManaged public var paymentMethodRaw: String?
     @NSManaged public var notes: String?
     @NSManaged public var typeRaw: Int16
+
+    /// Currency code the user entered the amount in (e.g. "EUR"). Nil = legacy row, treat amount as USD.
+    @NSManaged public var originalCurrencyRaw: String?
+    /// Amount as originally entered, in originalCurrencyRaw. Authoritative when originalCurrencyRaw is non-nil.
+    @NSManaged public var originalAmount: Double
 
     @NSManaged public var isRecurring: Bool
     @NSManaged public var recurringIntervalRaw: String?
@@ -32,6 +38,17 @@ extension CDTransaction {
         guard let raw = recurringIntervalRaw else { return nil }
         return RecurringInterval(rawValue: raw)
     }
+
+    /// The currency the transaction was originally logged in. Defaults to USD for legacy rows that pre-date the snapshot fields.
+    var originalCurrency: AppCurrency {
+        if let raw = originalCurrencyRaw, let currency = AppCurrency(rawValue: raw) {
+            return currency
+        }
+        return .usd
+    }
+
+    /// True if this row has a per-log currency snapshot. False for legacy rows (treat amount as USD).
+    var hasCurrencySnapshot: Bool { originalCurrencyRaw != nil }
 }
 
 @objc(CDPreset)

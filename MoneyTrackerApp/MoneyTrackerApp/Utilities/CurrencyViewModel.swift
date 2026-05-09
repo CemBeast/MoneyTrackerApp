@@ -19,6 +19,7 @@ private let fetchInterval: TimeInterval = 24 * 60 * 60
 final class CurrencyViewModel: ObservableObject {
     private let userDefaultsKey = "MoneyTracker.selectedCurrency"
     private let lastRatesFetchKey = "MoneyTracker.lastRatesFetchDate"
+    private let cachedRatesKey = "MoneyTracker.cachedRates"
 
     /// Currently selected display currency.
     @Published var selectedCurrency: AppCurrency {
@@ -33,7 +34,14 @@ final class CurrencyViewModel: ObservableObject {
     init() {
         let saved = UserDefaults.standard.string(forKey: userDefaultsKey)
         self.selectedCurrency = AppCurrency(rawValue: saved ?? baseCurrency.rawValue) ?? baseCurrency
-        loadManualRates()
+
+        if let cached = loadCachedRates() {
+            ratesFromBase = cached
+            debugPrintRates(source: "cached API")
+        } else {
+            loadManualRates()
+            debugPrintRates(source: "manual fallback")
+        }
     }
 
     // MARK: - Manual rates (fallback when API fails or before first fetch)
@@ -76,11 +84,37 @@ final class CurrencyViewModel: ObservableObject {
     /// Formats an amount (in base currency) for display in the selected currency. Converts first, then formats with correct symbol.
     func format(amountInBase: Double) -> String {
         let amount = convertFromBase(amountInBase)
+        return format(amount: amount, in: selectedCurrency)
+    }
+
+    /// USD equivalent per 1 unit of `currency` using current rates. Used to snapshot a rate at log time.
+    func rateToUSD(for currency: AppCurrency) -> Double {
+        let rate = ratesFromBase[currency] ?? 1.0
+        guard rate != 0 else { return 1.0 }
+        return 1.0 / rate
+    }
+
+    /// Display amount for a single transaction in the currently selected currency.
+    /// Uses the original amount directly when display == original (no drift); otherwise routes through the frozen USD value.
+    func displayAmount(for transaction: CDTransaction) -> Double {
+        if transaction.hasCurrencySnapshot && transaction.originalCurrency == selectedCurrency {
+            return transaction.originalAmount
+        }
+        return convertFromBase(transaction.amount)
+    }
+
+    /// Formatted display string for a single transaction in the currently selected currency.
+    func format(transaction: CDTransaction) -> String {
+        let amount = displayAmount(for: transaction)
+        return format(amount: amount, in: selectedCurrency)
+    }
+
+    private func format(amount: Double, in currency: AppCurrency) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
-        formatter.currencyCode = selectedCurrency.rawValue
-        formatter.locale = selectedCurrency.locale
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(selectedCurrency.rawValue) \(amount)"
+        formatter.currencyCode = currency.rawValue
+        formatter.locale = currency.locale
+        return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.rawValue) \(amount)"
     }
 
     // MARK: - API-based rates (once per day)
@@ -89,9 +123,28 @@ final class CurrencyViewModel: ObservableObject {
     func fetchRatesFromAPI() async {
         let now = Date()
         let last = UserDefaults.standard.object(forKey: lastRatesFetchKey) as? Date ?? .distantPast
-        guard now.timeIntervalSince(last) >= fetchInterval else { return }
+        let elapsed = now.timeIntervalSince(last)
+        let hasCachedRates = UserDefaults.standard.dictionary(forKey: cachedRatesKey) != nil
+        // Honor the 24h throttle only if we actually have cached rates from a prior successful fetch.
+        // Otherwise the throttle would lock us onto manual fallback for up to 24h after a stale timestamp.
+        if hasCachedRates && elapsed < fetchInterval {
+            #if DEBUG
+            let hours = elapsed / 3600
+            print("=== Currency API: skipping fetch — last successful fetch was \(String(format: "%.1f", hours))h ago (throttled to 24h) ===")
+            #endif
+            return
+        }
 
-        guard let rawRates = await CurrencyAPIService.fetchRates() else { return }
+        #if DEBUG
+        print("=== Currency API: fetching rates… ===")
+        #endif
+
+        guard let rawRates = await CurrencyAPIService.fetchRates() else {
+            #if DEBUG
+            print("=== Currency API: fetch FAILED — keeping existing rates ===")
+            #endif
+            return
+        }
 
         let mapped: [AppCurrency: Double] = AppCurrency.allCases.reduce(into: [:]) { result, currency in
             if let rate = rawRates[currency.rawValue], rate > 0 {
@@ -104,6 +157,41 @@ final class CurrencyViewModel: ObservableObject {
         await MainActor.run {
             ratesFromBase = mapped
             UserDefaults.standard.set(now, forKey: lastRatesFetchKey)
+            saveCachedRates(mapped)
+            debugPrintRates(source: "API")
         }
+    }
+
+    // MARK: - Rate persistence
+
+    private func saveCachedRates(_ rates: [AppCurrency: Double]) {
+        let stringKeyed = Dictionary(uniqueKeysWithValues: rates.map { ($0.key.rawValue, $0.value) })
+        UserDefaults.standard.set(stringKeyed, forKey: cachedRatesKey)
+    }
+
+    private func loadCachedRates() -> [AppCurrency: Double]? {
+        guard let stringKeyed = UserDefaults.standard.dictionary(forKey: cachedRatesKey) as? [String: Double],
+              !stringKeyed.isEmpty else { return nil }
+        var rates: [AppCurrency: Double] = [:]
+        for currency in AppCurrency.allCases {
+            if let rate = stringKeyed[currency.rawValue], rate > 0 {
+                rates[currency] = rate
+            } else {
+                rates[currency] = rateFromBaseTo(currency)
+            }
+        }
+        return rates
+    }
+
+    // MARK: - Debug
+
+    private func debugPrintRates(source: String) {
+        #if DEBUG
+        print("=== Currency rates (\(source)) — base: \(baseCurrency.rawValue), selected: \(selectedCurrency.rawValue) ===")
+        for currency in AppCurrency.allCases {
+            let rate = ratesFromBase[currency] ?? 0
+            print("  1 \(baseCurrency.rawValue) = \(rate) \(currency.rawValue)")
+        }
+        #endif
     }
 }

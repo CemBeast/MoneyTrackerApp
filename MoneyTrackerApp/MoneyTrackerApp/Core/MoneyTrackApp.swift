@@ -36,7 +36,7 @@ struct MoneyTrackApp: App {
     
     private func generateDueRecurringTransactions() {
         let context = persistence.container.viewContext
-        let recurringEngine = RecurringEngine(context: context)
+        let recurringEngine = RecurringEngine(context: context, currencyViewModel: currencyViewModel)
         recurringEngine.generateDueTransactions()
     }
 }

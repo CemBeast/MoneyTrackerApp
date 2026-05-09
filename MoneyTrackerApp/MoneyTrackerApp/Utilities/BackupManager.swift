@@ -18,7 +18,7 @@ struct BackupData: Codable {
     let presets: [BackupPreset]
     let budgets: [BackupBudget]
 
-    static let currentVersion = 1
+    static let currentVersion = 2
 }
 
 struct BackupTransaction: Codable {
@@ -35,6 +35,9 @@ struct BackupTransaction: Codable {
     let recurringGroupId: UUID?
     let generatedFromRecurringId: UUID?
     let createdAt: Date
+    /// v2+ original-currency snapshot. Optional so v1 backups still decode.
+    let originalCurrencyRaw: String?
+    let originalAmount: Double?
 }
 
 struct BackupPreset: Codable {
@@ -92,7 +95,9 @@ enum BackupManager {
                     recurringIntervalRaw: t.recurringIntervalRaw,
                     recurringGroupId: t.recurringGroupId,
                     generatedFromRecurringId: t.generatedFromRecurringId,
-                    createdAt: t.createdAt
+                    createdAt: t.createdAt,
+                    originalCurrencyRaw: t.originalCurrencyRaw,
+                    originalAmount: t.hasCurrencySnapshot ? t.originalAmount : nil
                 )
             },
             presets: presets.map { p in
@@ -170,6 +175,8 @@ enum BackupManager {
             obj.recurringGroupId = t.recurringGroupId
             obj.generatedFromRecurringId = t.generatedFromRecurringId
             obj.createdAt = t.createdAt
+            obj.originalCurrencyRaw = t.originalCurrencyRaw
+            obj.originalAmount = t.originalAmount ?? 0
         }
 
         // Insert presets

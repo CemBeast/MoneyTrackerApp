@@ -3,7 +3,30 @@ import Foundation
 
 struct RecurringEngine {
     let context: NSManagedObjectContext
+    /// Used to snapshot today's rate when generating instances. When nil, instances inherit the template's frozen rate (e.g. tests).
+    let currencyViewModel: CurrencyViewModel?
     private let calendar = Calendar.current
+
+    init(context: NSManagedObjectContext, currencyViewModel: CurrencyViewModel? = nil) {
+        self.context = context
+        self.currencyViewModel = currencyViewModel
+    }
+
+    /// Copies original-currency snapshot from the template, then re-snapshots today's rate to compute `amount`.
+    /// So a ฿16,000 rent template produces instances whose USD equivalent reflects each generation's FX rate.
+    private func applyAmountSnapshot(from template: CDTransaction, to instance: CDTransaction) {
+        if template.hasCurrencySnapshot, let vm = currencyViewModel {
+            let originalCurrency = template.originalCurrency
+            instance.originalCurrencyRaw = originalCurrency.rawValue
+            instance.originalAmount = template.originalAmount
+            instance.amount = template.originalAmount * vm.rateToUSD(for: originalCurrency)
+        } else {
+            // Legacy template (no snapshot) or no view model available: copy frozen amount as-is.
+            instance.originalCurrencyRaw = template.originalCurrencyRaw
+            instance.originalAmount = template.originalAmount
+            instance.amount = template.amount
+        }
+    }
     
     func generateForMonth(_ month: MonthKey) {
         guard let templates = fetchRecurringTemplates(), !templates.isEmpty else { return }
@@ -92,7 +115,7 @@ struct RecurringEngine {
         let instance = CDTransaction(context: context)
         instance.id = UUID()
         instance.date = instanceDate
-        instance.amount = template.amount
+        applyAmountSnapshot(from: template, to: instance)
         instance.categoryRaw = template.categoryRaw
         instance.merchant = template.merchant
         instance.paymentMethodRaw = template.paymentMethodRaw
@@ -104,7 +127,7 @@ struct RecurringEngine {
         instance.generatedFromRecurringId = groupId
         instance.createdAt = Date()
     }
-    
+
     private func hasGeneratedInstance(groupId: UUID, month: MonthKey) -> Bool {
         let startDate = month.startDate
         let endDate = calendar.date(byAdding: .month, value: 1, to: startDate) ?? startDate
@@ -158,7 +181,7 @@ struct RecurringEngine {
                 let instance = CDTransaction(context: context)
                 instance.id = UUID()
                 instance.date = occurrenceDate
-                instance.amount = template.amount
+                applyAmountSnapshot(from: template, to: instance)
                 instance.categoryRaw = template.categoryRaw
                 instance.merchant = template.merchant
                 instance.paymentMethodRaw = template.paymentMethodRaw
@@ -207,7 +230,7 @@ struct RecurringEngine {
                 let instance = CDTransaction(context: context)
                 instance.id = UUID()
                 instance.date = occurrenceDate
-                instance.amount = template.amount
+                applyAmountSnapshot(from: template, to: instance)
                 instance.categoryRaw = template.categoryRaw
                 instance.merchant = template.merchant
                 instance.paymentMethodRaw = template.paymentMethodRaw

@@ -167,7 +167,7 @@ struct CyberTransactionRow: View {
 
                     Spacer()
 
-                    Text(currencyViewModel.format(amountInBase: transaction.amount))
+                    Text(currencyViewModel.format(transaction: transaction))
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.neonGreen)

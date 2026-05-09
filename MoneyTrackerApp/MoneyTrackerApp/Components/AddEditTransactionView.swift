@@ -19,6 +19,11 @@ struct AddEditTransactionView: View {
     @State private var notes: String
     @State private var type: TransactionType
     @State private var recurringInterval: RecurringInterval?
+
+    /// When editing an existing log, this is the currency the transaction was originally logged in.
+    /// The amount input is shown/saved in this currency, not the user's current display currency.
+    /// Nil when creating a new transaction (uses the user's selected display currency).
+    @State private var entryCurrency: AppCurrency? = nil
     
     @State private var showError = false
     @State private var errorMessage = ""
@@ -70,7 +75,7 @@ struct AddEditTransactionView: View {
                             CyberSectionHeader(title: "Amount")
                             
                             HStack {
-                                Text(currencyViewModel.selectedCurrency.currencySymbol)
+                                Text(activeCurrency.currencySymbol)
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.neonGreen)
@@ -83,6 +88,14 @@ struct AddEditTransactionView: View {
                             }
                             .padding()
                             .cyberCard()
+
+                            if let entryCurrency, entryCurrency != currencyViewModel.selectedCurrency {
+                                Text("Logged in \(entryCurrency.label) — editing in original currency.")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 4)
+                            }
                         }
                         
                         // Details Section
@@ -205,8 +218,17 @@ struct AddEditTransactionView: View {
             .onAppear {
                 guard !hasInitializedAmountFromCurrency else { return }
                 if let t = transaction {
-                    amount = String(format: "%.2f", currencyViewModel.convertFromBase(t.amount))
+                    if t.hasCurrencySnapshot {
+                        // Edit in the transaction's original currency.
+                        entryCurrency = t.originalCurrency
+                        amount = String(format: "%.2f", t.originalAmount)
+                    } else {
+                        // Legacy row: amount is USD. Show in USD.
+                        entryCurrency = .usd
+                        amount = String(format: "%.2f", t.amount)
+                    }
                 } else if let p = preset, p.defaultAmount > 0 {
+                    // Presets store defaultAmount in USD; show converted into current display currency.
                     amount = String(format: "%.2f", currencyViewModel.convertFromBase(p.defaultAmount))
                 }
                 hasInitializedAmountFromCurrency = true
@@ -214,14 +236,22 @@ struct AddEditTransactionView: View {
         }
     }
 
+    /// Currency the input is being entered in. For edits, the transaction's original currency; otherwise the user's display currency.
+    private var activeCurrency: AppCurrency {
+        entryCurrency ?? currencyViewModel.selectedCurrency
+    }
+
     private func save() {
-        guard let amountInDisplayCurrency = Double(amount), amountInDisplayCurrency > 0 else {
+        guard let enteredAmount = Double(amount), enteredAmount > 0 else {
             errorMessage = "Amount must be greater than 0"
             showError = true
             return
         }
 
-        let amountInBase = currencyViewModel.convertToBase(amountInDisplayCurrency)
+        // Snapshot the original currency + frozen USD-equivalent at save time.
+        let originalCurrency = activeCurrency
+        let rateToUSD = currencyViewModel.rateToUSD(for: originalCurrency)
+        let frozenUSD = enteredAmount * rateToUSD
 
         let context = transaction?.managedObjectContext ?? viewContext
         let txn: CDTransaction
@@ -235,9 +265,11 @@ struct AddEditTransactionView: View {
             txn.createdAt = Date()
         }
 
-        // Update transaction properties (amount stored in USD)
+        // Update transaction properties. amount = frozen USD-equivalent at save time.
         txn.date = date
-        txn.amount = amountInBase
+        txn.amount = frozenUSD
+        txn.originalCurrencyRaw = originalCurrency.rawValue
+        txn.originalAmount = enteredAmount
         txn.categoryRaw = category.rawValue
         txn.merchant = merchant.isEmpty ? nil : merchant
         txn.paymentMethodRaw = paymentMethod.rawValue
