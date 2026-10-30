@@ -168,4 +168,32 @@ struct RecurringEngineDailyTests {
         #expect(instances[0].merchant == "Daily Transit")
         #expect(instances[0].isRecurring == false, "Generated instances should not be recurring templates")
     }
+
+    @Test("Template whose own log was deleted keeps generating and keeps other instances")
+    func scheduleOnlyTemplateKeepsGenerating() throws {
+        let controller = makeTestController()
+        let context = controller.container.viewContext
+        let calendar = Calendar.current
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: Date())!
+
+        let groupId = UUID()
+        let template = createDailyTemplate(context: context, date: twoDaysAgo, groupId: groupId)
+        try context.save()
+
+        let engine = RecurringEngine(context: context)
+        engine.generateDueTransactions(asOf: Date())
+        #expect(countGeneratedInstances(context: context, groupId: groupId) == 2)
+
+        // Deleting the template's log from the Log view hides it instead of deleting the schedule
+        template.isScheduleOnly = true
+        try context.save()
+
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
+        engine.generateDueTransactions(asOf: tomorrow)
+        #expect(countGeneratedInstances(context: context, groupId: groupId) == 3, "Schedule should keep generating after its first log is deleted")
+
+        let visible = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        visible.predicate = NSPredicate(format: "isScheduleOnly == NO")
+        #expect(try context.count(for: visible) == 3, "Only the generated instances should be visible in the log")
+    }
 }

@@ -30,6 +30,8 @@ extension CDTransaction {
     @NSManaged public var generatedFromRecurringId: UUID?
     /// Original scheduled date of a generated instance (nil for templates/manual rows). `date` may be edited; this isn't.
     @NSManaged public var occurrenceDate: Date?
+    /// Recurring template whose own log was deleted. Still drives generation; hidden from logs and stats.
+    @NSManaged public var isScheduleOnly: Bool
 
     @NSManaged public var createdAt: Date
 

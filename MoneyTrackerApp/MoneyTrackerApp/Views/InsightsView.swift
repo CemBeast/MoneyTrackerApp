@@ -11,7 +11,8 @@ struct InsightsView: View {
     @State private var showRangePicker = false
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)]
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
+        predicate: NSPredicate(format: "isScheduleOnly == NO")
     )
     private var allTransactions: FetchedResults<CDTransaction>
 
@@ -45,7 +46,7 @@ struct InsightsView: View {
         } ?? Date.distantFuture
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
             startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
         )
         return ((try? viewContext.fetch(request)) ?? []).reduce(0.0) { $0 + $1.amount }
@@ -184,7 +185,7 @@ struct CyberCategoryAveragesView: View {
         }
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
             startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
         )
         guard let txns = try? stats.context.fetch(request) else { return nil }
@@ -248,7 +249,7 @@ struct CyberPercentagesView: View {
         } ?? Date.distantFuture
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
             startOfDay as NSDate, endOfDay as NSDate, TransactionType.expense.rawValue
         )
         guard let txns = try? stats.context.fetch(request) else { return nil }
@@ -417,7 +418,7 @@ struct CyberCategoryPieChart: View {
     private func fetchAmounts(start: Date, end: Date) -> [MoneyCategory: Double] {
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
             start as NSDate, end as NSDate, TransactionType.expense.rawValue
         )
         var totals: [MoneyCategory: Double] = [:]
@@ -536,7 +537,7 @@ struct CyberPaymentMethodPieChart: View {
     private func fetchAmounts(start: Date, end: Date) -> [PaymentMethod: Double] {
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
             start as NSDate, end as NSDate, TransactionType.expense.rawValue
         )
         var totals: [PaymentMethod: Double] = [:]

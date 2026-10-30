@@ -22,7 +22,8 @@ struct TransactionQueryList: View {
         self.onTap = onTap
         self.onDelete = onDelete
         
-        var predicates: [NSPredicate] = []
+        // Templates whose own log was deleted live on only as a schedule
+        var predicates: [NSPredicate] = [NSPredicate(format: "isScheduleOnly == NO")]
         
         // Search text (merchant + notes)
         if !searchText.isEmpty {

@@ -6,7 +6,7 @@ struct InsightsStats {
     
     func allTimeTotalsPerCategory() -> [MoneyCategory: Double] {
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.predicate = NSPredicate(format: "typeRaw == %d", TransactionType.expense.rawValue)
+        request.predicate = NSPredicate(format: "typeRaw == %d AND isScheduleOnly == NO", TransactionType.expense.rawValue)
         
         guard let transactions = try? context.fetch(request) else {
             return [:]
@@ -23,7 +23,7 @@ struct InsightsStats {
     
     func monthlyTotals() -> [MonthKey: Double] {
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.predicate = NSPredicate(format: "typeRaw == %d", TransactionType.expense.rawValue)
+        request.predicate = NSPredicate(format: "typeRaw == %d AND isScheduleOnly == NO", TransactionType.expense.rawValue)
         
         guard let transactions = try? context.fetch(request) else {
             return [:]
@@ -55,7 +55,7 @@ struct InsightsStats {
             let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
             let startDate = monthKey.startDate
             let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
-            request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d",
+            request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
                                            startDate as NSDate,
                                            endDate as NSDate,
                                            TransactionType.expense.rawValue)
@@ -99,7 +99,7 @@ struct InsightsStats {
         let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
         
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d",
+        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
                                        startDate as NSDate,
                                        endDate as NSDate,
                                        TransactionType.expense.rawValue)
@@ -129,7 +129,7 @@ struct InsightsStats {
     
     func allTimeTotalsPerPaymentMethod() -> [PaymentMethod: Double] {
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.predicate = NSPredicate(format: "typeRaw == %d", TransactionType.expense.rawValue)
+        request.predicate = NSPredicate(format: "typeRaw == %d AND isScheduleOnly == NO", TransactionType.expense.rawValue)
         
         guard let transactions = try? context.fetch(request) else {
             return [:]
@@ -162,7 +162,7 @@ struct InsightsStats {
         let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
         
         let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d",
+        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND typeRaw == %d AND isScheduleOnly == NO",
                                        startDate as NSDate,
                                        endDate as NSDate,
                                        TransactionType.expense.rawValue)

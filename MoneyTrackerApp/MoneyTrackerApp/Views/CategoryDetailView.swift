@@ -7,7 +7,10 @@ struct CategoryDetailView: View {
     let category: MoneyCategory
     @State private var selectedMonth: MonthKey?
     
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)])
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
+        predicate: NSPredicate(format: "isScheduleOnly == NO")
+    )
     private var allTransactions: FetchedResults<CDTransaction>
     
     private var availableMonths: [MonthKey] {

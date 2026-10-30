@@ -38,6 +38,8 @@ struct BackupTransaction: Codable {
     let generatedFromRecurringId: UUID?
     /// v3+ scheduled date of generated instances. Optional so older backups still decode.
     let occurrenceDate: Date?
+    /// v3+. Optional so older backups still decode.
+    let isScheduleOnly: Bool?
     let createdAt: Date
     /// v2+ original-currency snapshot. Optional so v1 backups still decode.
     let originalCurrencyRaw: String?
@@ -109,6 +111,7 @@ enum BackupManager {
                     recurringGroupId: t.recurringGroupId,
                     generatedFromRecurringId: t.generatedFromRecurringId,
                     occurrenceDate: t.occurrenceDate,
+                    isScheduleOnly: t.isScheduleOnly,
                     createdAt: t.createdAt,
                     originalCurrencyRaw: t.originalCurrencyRaw,
                     originalAmount: t.hasCurrencySnapshot ? t.originalAmount : nil
@@ -194,6 +197,7 @@ enum BackupManager {
             obj.recurringGroupId = t.recurringGroupId
             obj.generatedFromRecurringId = t.generatedFromRecurringId
             obj.occurrenceDate = t.occurrenceDate
+            obj.isScheduleOnly = t.isScheduleOnly ?? false
             obj.createdAt = t.createdAt
             obj.originalCurrencyRaw = t.originalCurrencyRaw
             obj.originalAmount = t.originalAmount ?? 0

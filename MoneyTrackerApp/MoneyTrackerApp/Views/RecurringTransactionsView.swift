@@ -92,8 +92,13 @@ struct RecurringTransactionsView: View {
     /// occurrence, so it stays as a regular transaction; generated instances keep their link via
     /// generatedFromRecurringId. recurringGroupId is kept so re-enabling won't duplicate past months.
     private func stopRecurring(_ transaction: CDTransaction) {
-        transaction.isRecurring = false
-        transaction.recurringIntervalRaw = nil
+        if transaction.isScheduleOnly {
+            // Its own log was already deleted; un-recurring it would resurface that log.
+            viewContext.delete(transaction)
+        } else {
+            transaction.isRecurring = false
+            transaction.recurringIntervalRaw = nil
+        }
         PersistenceController.shared.save(viewContext)
     }
 }

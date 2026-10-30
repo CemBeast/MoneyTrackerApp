@@ -8,7 +8,10 @@ struct MonthsView: View {
     @State private var refreshToken = UUID()
     @State private var showBudgets = false
     
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)])
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
+        predicate: NSPredicate(format: "isScheduleOnly == NO")
+    )
     private var allTransactions: FetchedResults<CDTransaction>
     
     // Signature to detect any change in transactions (add/edit/delete/date/category/amount)
@@ -172,7 +175,10 @@ struct CyberMonthRow: View {
 struct MonthDetailView: View {
     let month: MonthKey
 
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)])
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
+        predicate: NSPredicate(format: "isScheduleOnly == NO")
+    )
     private var allTransactions: FetchedResults<CDTransaction>
 
     @FetchRequest(

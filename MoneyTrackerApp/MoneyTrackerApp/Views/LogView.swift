@@ -15,12 +15,14 @@ struct LogView: View {
     @State private var transactionToEdit: CDTransaction?
     @State private var deletedTransaction: CDTransaction?
     @State private var deletedSkipMarker: CDSkippedOccurrence?
+    @State private var hiddenTemplate: CDTransaction?
     @State private var showUndoToast = false
     @State private var refreshToken = UUID()
     @State private var showSettings = false
     
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)]
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
+        predicate: NSPredicate(format: "isScheduleOnly == NO")
     )
     private var allTransactions: FetchedResults<CDTransaction>
     
@@ -139,10 +141,16 @@ struct LogView: View {
                             transactionToEdit = transaction
                         },
                         onDelete: { transaction in
-                            deletedTransaction = transaction
-                            // Generated recurring instances leave a tombstone so the engine won't re-log them.
-                            deletedSkipMarker = RecurringEngine.recordSkippedOccurrence(for: transaction, in: viewContext)
-                            viewContext.delete(transaction)
+                            if transaction.isRecurring && transaction.generatedFromRecurringId == nil {
+                                // The template is also the first log. Hide that log but keep the schedule running.
+                                hiddenTemplate = transaction
+                                transaction.isScheduleOnly = true
+                            } else {
+                                deletedTransaction = transaction
+                                // Generated recurring instances leave a tombstone so the engine won't re-log them.
+                                deletedSkipMarker = RecurringEngine.recordSkippedOccurrence(for: transaction, in: viewContext)
+                                viewContext.delete(transaction)
+                            }
                             PersistenceController.shared.save(viewContext)
                             showUndoToast = true
                         }
@@ -205,6 +213,11 @@ struct LogView: View {
                             PersistenceController.shared.save(viewContext)
                             deletedTransaction = nil
                             deletedSkipMarker = nil
+                        }
+                        if let template = hiddenTemplate {
+                            template.isScheduleOnly = false
+                            PersistenceController.shared.save(viewContext)
+                            hiddenTemplate = nil
                         }
                         showUndoToast = false
                     }

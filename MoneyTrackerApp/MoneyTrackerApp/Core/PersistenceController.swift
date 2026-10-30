@@ -120,6 +120,8 @@ final class PersistenceController {
             attr("generatedFromRecurringId", .UUIDAttributeType, optional: true),
             // Scheduled date of a generated instance. Unlike `date`, never edited, so the engine can match periods after the user moves it.
             attr("occurrenceDate", .dateAttributeType, optional: true),
+            // Template whose own log the user deleted: keeps generating, but is hidden from logs and stats.
+            attr("isScheduleOnly", .booleanAttributeType, optional: false, defaultValue: false),
 
             attr("createdAt", .dateAttributeType, optional: false)
         ]

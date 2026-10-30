@@ -289,10 +289,20 @@ struct AddEditTransactionView: View {
             }
         }
         
+        // A schedule-only template has no visible log; once it stops recurring there's nothing left to keep.
+        if txn.isScheduleOnly && !isRecurring {
+            context.delete(txn)
+        }
+
         // Ensure the object is marked as updated
         if context.hasChanges {
             // Save to context - this will trigger CoreData notifications
             PersistenceController.shared.save(context)
+        }
+
+        // Back-dated or newly recurring entries should catch up now, not on next launch.
+        if isRecurring {
+            RecurringEngine(context: context, currencyViewModel: currencyViewModel).generateDueTransactions()
         }
         
         // Notify parent
