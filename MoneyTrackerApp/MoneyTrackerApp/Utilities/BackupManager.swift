@@ -19,8 +19,10 @@ struct BackupData: Codable {
     let budgets: [BackupBudget]
     /// v3+ tombstones for deleted recurring occurrences. Optional so older backups still decode.
     let skippedOccurrences: [BackupSkippedOccurrence]?
+    /// v4+ recurring schedules. Older backups carry recurrence on transactions and are migrated on import.
+    let schedules: [BackupSchedule]?
 
-    static let currentVersion = 3
+    static let currentVersion = 4
 }
 
 struct BackupTransaction: Codable {
@@ -32,6 +34,7 @@ struct BackupTransaction: Codable {
     let paymentMethodRaw: String?
     let notes: String?
     let typeRaw: Int16
+    /// Legacy template fields (≤ v3). Still exported so the format stays decodable by older builds.
     let isRecurring: Bool
     let recurringIntervalRaw: String?
     let recurringGroupId: UUID?
@@ -63,6 +66,21 @@ struct BackupBudget: Codable {
     let limit: Double
 }
 
+struct BackupSchedule: Codable {
+    let id: UUID
+    let startDate: Date
+    let intervalRaw: String
+    let amount: Double
+    let originalCurrencyRaw: String?
+    let originalAmount: Double
+    let categoryRaw: String
+    let merchant: String?
+    let paymentMethodRaw: String?
+    let notes: String?
+    let typeRaw: Int16
+    let createdAt: Date
+}
+
 struct BackupSkippedOccurrence: Codable {
     let id: UUID
     let groupId: UUID
@@ -85,11 +103,14 @@ enum BackupManager {
         budgetRequest.sortDescriptors = [NSSortDescriptor(keyPath: \CDBudget.monthStart, ascending: true)]
 
         let skippedRequest = NSFetchRequest<CDSkippedOccurrence>(entityName: "CDSkippedOccurrence")
+        let scheduleRequest = NSFetchRequest<CDRecurringSchedule>(entityName: "CDRecurringSchedule")
+        scheduleRequest.sortDescriptors = [NSSortDescriptor(keyPath: \CDRecurringSchedule.createdAt, ascending: true)]
 
         guard let transactions = try? context.fetch(txnRequest),
               let presets = try? context.fetch(presetRequest),
               let budgets = try? context.fetch(budgetRequest),
-              let skipped = try? context.fetch(skippedRequest) else {
+              let skipped = try? context.fetch(skippedRequest),
+              let schedules = try? context.fetch(scheduleRequest) else {
             return nil
         }
 
@@ -138,6 +159,22 @@ enum BackupManager {
             },
             skippedOccurrences: skipped.map { s in
                 BackupSkippedOccurrence(id: s.id, groupId: s.groupId, date: s.date)
+            },
+            schedules: schedules.map { s in
+                BackupSchedule(
+                    id: s.id,
+                    startDate: s.startDate,
+                    intervalRaw: s.intervalRaw,
+                    amount: s.amount,
+                    originalCurrencyRaw: s.originalCurrencyRaw,
+                    originalAmount: s.originalAmount,
+                    categoryRaw: s.categoryRaw,
+                    merchant: s.merchant,
+                    paymentMethodRaw: s.paymentMethodRaw,
+                    notes: s.notes,
+                    typeRaw: s.typeRaw,
+                    createdAt: s.createdAt
+                )
             }
         )
 
@@ -180,6 +217,8 @@ enum BackupManager {
         (try? context.fetch(budgetRequest))?.forEach { context.delete($0) }
         let skippedRequest = NSFetchRequest<CDSkippedOccurrence>(entityName: "CDSkippedOccurrence")
         (try? context.fetch(skippedRequest))?.forEach { context.delete($0) }
+        let scheduleRequest = NSFetchRequest<CDRecurringSchedule>(entityName: "CDRecurringSchedule")
+        (try? context.fetch(scheduleRequest))?.forEach { context.delete($0) }
 
         // Insert transactions
         for t in backup.transactions {
@@ -231,6 +270,26 @@ enum BackupManager {
             obj.groupId = s.groupId
             obj.date = s.date
         }
+
+        // Insert recurring schedules
+        for s in backup.schedules ?? [] {
+            let obj = CDRecurringSchedule(context: context)
+            obj.id = s.id
+            obj.startDate = s.startDate
+            obj.intervalRaw = s.intervalRaw
+            obj.amount = s.amount
+            obj.originalCurrencyRaw = s.originalCurrencyRaw
+            obj.originalAmount = s.originalAmount
+            obj.categoryRaw = s.categoryRaw
+            obj.merchant = s.merchant
+            obj.paymentMethodRaw = s.paymentMethodRaw
+            obj.notes = s.notes
+            obj.typeRaw = s.typeRaw
+            obj.createdAt = s.createdAt
+        }
+
+        // ≤ v3 backups store recurrence as templates on transactions; convert them to schedules.
+        LegacyRecurringMigration.run(in: context)
 
         return nil
     }

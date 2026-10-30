@@ -2,7 +2,7 @@
 //  RecurringTransactionsView.swift
 //  MoneyTrackerApp
 //
-//  Displays all transactions marked as recurring (templates only, not generated instances).
+//  Lists recurring schedules. Schedules are rules, not logs; the logs they generate live in the Transaction Log.
 //
 
 import SwiftUI
@@ -13,18 +13,17 @@ struct RecurringTransactionsView: View {
     @EnvironmentObject var currencyViewModel: CurrencyViewModel
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
-        predicate: NSPredicate(format: "isRecurring == YES AND generatedFromRecurringId == nil")
+        sortDescriptors: [NSSortDescriptor(keyPath: \CDRecurringSchedule.createdAt, ascending: false)]
     )
-    private var recurringTransactions: FetchedResults<CDTransaction>
+    private var schedules: FetchedResults<CDRecurringSchedule>
 
-    @State private var transactionToRemove: CDTransaction?
+    @State private var scheduleToRemove: CDRecurringSchedule?
 
     var body: some View {
         ZStack {
             Color.cyberBlack.ignoresSafeArea()
 
-            if recurringTransactions.isEmpty {
+            if schedules.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "repeat.circle")
                         .font(.system(size: 48))
@@ -34,7 +33,7 @@ struct RecurringTransactionsView: View {
                         .font(.headline)
                         .foregroundColor(.white.opacity(0.5))
 
-                    Text("Mark a transaction as recurring when adding or editing it")
+                    Text("Tap + to add one, or open a log and tap Make Recurring")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.3))
                         .multilineTextAlignment(.center)
@@ -44,17 +43,14 @@ struct RecurringTransactionsView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(recurringTransactions) { transaction in
-                            NavigationLink(destination: AddEditTransactionView(transaction: transaction)) {
-                                CyberTransactionRow(
-                                    transaction: transaction,
-                                    currencyViewModel: currencyViewModel
-                                )
+                        ForEach(schedules) { schedule in
+                            NavigationLink(destination: RecurringScheduleEditView(schedule: schedule)) {
+                                CyberScheduleRow(schedule: schedule, currencyViewModel: currencyViewModel)
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
                                 Button(role: .destructive) {
-                                    transactionToRemove = transaction
+                                    scheduleToRemove = schedule
                                 } label: {
                                     Label("Remove Recurring", systemImage: "trash")
                                 }
@@ -66,39 +62,96 @@ struct RecurringTransactionsView: View {
             }
         }
         .cyberNavTitle("Recurring")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink(destination: RecurringScheduleEditView()) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.neonGreen)
+                }
+            }
+        }
         .confirmationDialog(
             "Remove Recurring?",
             isPresented: Binding(
-                get: { transactionToRemove != nil },
-                set: { if !$0 { transactionToRemove = nil } }
+                get: { scheduleToRemove != nil },
+                set: { if !$0 { scheduleToRemove = nil } }
             ),
             titleVisibility: .visible
         ) {
             Button("Remove Recurring", role: .destructive) {
-                if let transaction = transactionToRemove {
-                    stopRecurring(transaction)
+                if let schedule = scheduleToRemove {
+                    RecurringEngine.removeSchedule(schedule, in: viewContext)
+                    PersistenceController.shared.save(viewContext)
                 }
-                transactionToRemove = nil
+                scheduleToRemove = nil
             }
             Button("Cancel", role: .cancel) {
-                transactionToRemove = nil
+                scheduleToRemove = nil
             }
         } message: {
             Text("No new transactions will be generated. Past logged transactions are kept.")
         }
     }
+}
 
-    /// Stops future generation without deleting anything. The template is itself the first logged
-    /// occurrence, so it stays as a regular transaction; generated instances keep their link via
-    /// generatedFromRecurringId. recurringGroupId is kept so re-enabling won't duplicate past months.
-    private func stopRecurring(_ transaction: CDTransaction) {
-        if transaction.isScheduleOnly {
-            // Its own log was already deleted; un-recurring it would resurface that log.
-            viewContext.delete(transaction)
-        } else {
-            transaction.isRecurring = false
-            transaction.recurringIntervalRaw = nil
+struct CyberScheduleRow: View {
+    @ObservedObject var schedule: CDRecurringSchedule
+    @ObservedObject var currencyViewModel: CurrencyViewModel
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(categoryColor.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(categoryColor.opacity(0.5), lineWidth: 1)
+                    )
+
+                Image(systemName: schedule.category.icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(categoryColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(schedule.merchant ?? "No merchant")
+                        .font(.headline)
+                        .foregroundColor(.white)
+
+                    Spacer()
+
+                    Text(currencyViewModel.format(schedule: schedule))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.neonGreen)
+                }
+
+                HStack(spacing: 8) {
+                    CyberTag(text: schedule.category.rawValue, color: categoryColor)
+                    CyberTag(text: schedule.interval.rawValue.capitalized, color: .neonGreen)
+
+                    Spacer()
+
+                    Text("Since \(schedule.startDate.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.4))
+                }
+            }
+
+            Spacer(minLength: 0)
         }
-        PersistenceController.shared.save(viewContext)
+        .padding(14)
+        .background(Color.cyberDarkGray)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(categoryColor.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    private var categoryColor: Color {
+        schedule.category.color
     }
 }

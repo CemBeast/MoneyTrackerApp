@@ -8,7 +8,7 @@ struct CategoriesView: View {
     
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: false)],
-        predicate: NSPredicate(format: "typeRaw == %d AND isScheduleOnly == NO", TransactionType.expense.rawValue)
+        predicate: NSPredicate(format: "typeRaw == %d", TransactionType.expense.rawValue)
     )
     private var allTransactions: FetchedResults<CDTransaction>
     

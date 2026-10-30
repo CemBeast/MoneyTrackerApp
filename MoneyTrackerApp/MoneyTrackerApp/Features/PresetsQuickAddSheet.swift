@@ -132,8 +132,6 @@ struct PresetsQuickAddSheet: View {
         txn.paymentMethodRaw = preset.defaultPaymentMethodRaw
         txn.notes = preset.defaultNotes
         txn.typeRaw = TransactionType.expense.rawValue
-        txn.isRecurring = false
-        txn.recurringIntervalRaw = nil
         PersistenceController.shared.save(viewContext)
     }
 }

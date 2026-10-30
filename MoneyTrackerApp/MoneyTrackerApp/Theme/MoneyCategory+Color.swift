@@ -18,5 +18,22 @@ extension MoneyCategory {
         case .misc: return .neonTeal
         }
     }
-}
 
+    var icon: String {
+        switch self {
+        case .housing: return "house.fill"
+        case .fixedBills: return "building.2.fill"
+        case .food: return "fork.knife"
+        case .transportation: return "car.fill"
+        case .healthcare: return "cross.case.fill"
+        case .funLifestyle: return "gamecontroller.fill"
+        case .shopping: return "bag.fill"
+        case .subscriptions: return "repeat"
+        case .savings: return "banknote.fill"
+        case .investing: return "chart.line.uptrend.xyaxis"
+        case .travel: return "airplane"
+        case .gifts: return "gift.fill"
+        case .misc: return "ellipsis.circle.fill"
+        }
+    }
+}

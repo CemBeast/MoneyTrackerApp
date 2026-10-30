@@ -109,6 +109,19 @@ final class CurrencyViewModel: ObservableObject {
         return format(amount: amount, in: selectedCurrency)
     }
 
+    /// Formatted per-occurrence amount of a schedule, in the currently selected currency (same rules as a log).
+    func format(schedule: CDRecurringSchedule) -> String {
+        let amount: Double
+        if schedule.hasCurrencySnapshot && schedule.originalCurrency == selectedCurrency {
+            amount = schedule.originalAmount
+        } else if schedule.hasCurrencySnapshot {
+            amount = convertFromBase(schedule.originalAmount * rateToUSD(for: schedule.originalCurrency))
+        } else {
+            amount = convertFromBase(schedule.amount)
+        }
+        return format(amount: amount, in: selectedCurrency)
+    }
+
     private func format(amount: Double, in currency: AppCurrency) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency

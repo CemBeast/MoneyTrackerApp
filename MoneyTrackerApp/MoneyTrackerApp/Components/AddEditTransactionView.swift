@@ -18,7 +18,7 @@ struct AddEditTransactionView: View {
     @State private var paymentMethod: PaymentMethod
     @State private var notes: String
     @State private var type: TransactionType
-    @State private var recurringInterval: RecurringInterval?
+    @State private var showMakeRecurring = false
 
     /// When editing an existing log, this is the currency the transaction was originally logged in.
     /// The amount input is shown/saved in this currency, not the user's current display currency.
@@ -41,7 +41,6 @@ struct AddEditTransactionView: View {
             _paymentMethod = State(initialValue: transaction.paymentMethod)
             _notes = State(initialValue: transaction.notes ?? "")
             _type = State(initialValue: transaction.type)
-            _recurringInterval = State(initialValue: transaction.recurringInterval)
         } else if let preset = preset {
             _date = State(initialValue: Date())
             _amount = State(initialValue: "")  // set in onAppear from currencyViewModel if preset has amount
@@ -50,7 +49,6 @@ struct AddEditTransactionView: View {
             _paymentMethod = State(initialValue: preset.defaultPaymentMethod)
             _notes = State(initialValue: preset.defaultNotes ?? "")
             _type = State(initialValue: .expense)
-            _recurringInterval = State(initialValue: nil)
         } else {
             _date = State(initialValue: Date())
             _amount = State(initialValue: "")
@@ -59,7 +57,6 @@ struct AddEditTransactionView: View {
             _paymentMethod = State(initialValue: .other)
             _notes = State(initialValue: "")
             _type = State(initialValue: .expense)
-            _recurringInterval = State(initialValue: nil)
         }
     }
     
@@ -156,32 +153,39 @@ struct AddEditTransactionView: View {
                             .cyberCard()
                         }
                         
-                        // Recurring Section
-                        VStack(spacing: 16) {
-                            CyberSectionHeader(title: "Recurring")
-                            
-                            VStack(spacing: 12) {
-                                CyberFormRow(label: "How Often") {
-                                    Picker("", selection: $recurringInterval) {
-                                        Text("None").tag(nil as RecurringInterval?)
-                                        ForEach(RecurringInterval.allCases) { interval in
-                                            Text(interval.rawValue.capitalized).tag(interval as RecurringInterval?)
-                                        }
+                        // Recurring Section (schedules are managed in Settings → Recurring)
+                        if let transaction {
+                            VStack(spacing: 16) {
+                                CyberSectionHeader(title: "Recurring")
+
+                                if transaction.isGeneratedFromSchedule {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "repeat.circle.fill")
+                                            .foregroundColor(.neonGreen)
+                                        Text("Part of recurring (\((transaction.recurringInterval?.rawValue ?? "recurring").capitalized)). Edits here only change this log.")
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.6))
+                                            .frame(maxWidth: .infinity, alignment: .leading)
                                     }
-                                    .tint(.neonGreen)
-                                }
-                                
-                                if recurringInterval == .monthly {
-                                    CyberDivider()
-                                    
-                                    Text("Monthly repeats on day \(Calendar.current.component(.day, from: date)), using the last day when needed.")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.6))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding()
+                                    .cyberCard()
+                                } else {
+                                    Button {
+                                        showMakeRecurring = true
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "repeat")
+                                            Text("Make Recurring")
+                                                .fontWeight(.semibold)
+                                            Spacer()
+                                        }
+                                        .foregroundColor(.neonGreen)
+                                        .padding()
+                                        .cyberCard()
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .padding()
-                            .cyberCard()
                         }
                         
                         // Save Button
@@ -209,6 +213,16 @@ struct AddEditTransactionView: View {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(.neonGreen)
                 }
+            }
+            .confirmationDialog("Repeat this transaction", isPresented: $showMakeRecurring, titleVisibility: .visible) {
+                ForEach(RecurringInterval.allCases) { interval in
+                    Button(interval.rawValue.capitalized) {
+                        save(makingRecurring: interval)
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Creates a schedule in Settings → Recurring starting on this log's date. This log stays as the first one.")
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
@@ -241,7 +255,8 @@ struct AddEditTransactionView: View {
         entryCurrency ?? currencyViewModel.selectedCurrency
     }
 
-    private func save() {
+    /// Saves the form. With `interval`, also turns the saved log into the first occurrence of a new schedule.
+    private func save(makingRecurring interval: RecurringInterval? = nil) {
         guard let enteredAmount = Double(amount), enteredAmount > 0 else {
             errorMessage = "Amount must be greater than 0"
             showError = true
@@ -255,7 +270,6 @@ struct AddEditTransactionView: View {
 
         let context = transaction?.managedObjectContext ?? viewContext
         let txn: CDTransaction
-        let isRecurring = recurringInterval != nil
 
         if let transaction = transaction {
             txn = transaction
@@ -275,23 +289,9 @@ struct AddEditTransactionView: View {
         txn.paymentMethodRaw = paymentMethod.rawValue
         txn.notes = notes.isEmpty ? nil : notes
         txn.typeRaw = type.rawValue
-        txn.isRecurring = isRecurring
-        txn.recurringIntervalRaw = recurringInterval?.rawValue
-        
-        // Generated instances should keep their source IDs untouched.
-        if txn.generatedFromRecurringId == nil {
-            if isRecurring {
-                if txn.recurringGroupId == nil {
-                    txn.recurringGroupId = UUID()
-                }
-            } else {
-                txn.recurringGroupId = nil
-            }
-        }
-        
-        // A schedule-only template has no visible log; once it stops recurring there's nothing left to keep.
-        if txn.isScheduleOnly && !isRecurring {
-            context.delete(txn)
+
+        if let interval, !txn.isGeneratedFromSchedule {
+            RecurringEngine.makeSchedule(from: txn, interval: interval, in: context)
         }
 
         // Ensure the object is marked as updated
@@ -300,8 +300,8 @@ struct AddEditTransactionView: View {
             PersistenceController.shared.save(context)
         }
 
-        // Back-dated or newly recurring entries should catch up now, not on next launch.
-        if isRecurring {
+        // A back-dated schedule should catch up now, not on next launch.
+        if interval != nil {
             RecurringEngine(context: context, currencyViewModel: currencyViewModel).generateDueTransactions()
         }
         

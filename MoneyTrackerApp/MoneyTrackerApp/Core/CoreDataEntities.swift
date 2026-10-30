@@ -24,13 +24,16 @@ extension CDTransaction {
     /// Amount as originally entered, in originalCurrencyRaw. Authoritative when originalCurrencyRaw is non-nil.
     @NSManaged public var originalAmount: Double
 
-    @NSManaged public var isRecurring: Bool
+    /// Interval of the schedule that generated this log (for the badge). Nil for manual logs.
     @NSManaged public var recurringIntervalRaw: String?
-    @NSManaged public var recurringGroupId: UUID?
+    /// CDRecurringSchedule.id that generated this log. Kept after the schedule is removed so the badge stays.
     @NSManaged public var generatedFromRecurringId: UUID?
-    /// Original scheduled date of a generated instance (nil for templates/manual rows). `date` may be edited; this isn't.
+    /// Original scheduled date of a generated instance (nil for manual rows). `date` may be edited; this isn't.
     @NSManaged public var occurrenceDate: Date?
-    /// Recurring template whose own log was deleted. Still drives generation; hidden from logs and stats.
+
+    // Legacy template fields (pre-CDRecurringSchedule). Only LegacyRecurringMigration and backups touch these.
+    @NSManaged public var isRecurring: Bool
+    @NSManaged public var recurringGroupId: UUID?
     @NSManaged public var isScheduleOnly: Bool
 
     @NSManaged public var createdAt: Date
@@ -52,6 +55,46 @@ extension CDTransaction {
     }
 
     /// True if this row has a per-log currency snapshot. False for legacy rows (treat amount as USD).
+    var hasCurrencySnapshot: Bool { originalCurrencyRaw != nil }
+
+    var isGeneratedFromSchedule: Bool { generatedFromRecurringId != nil }
+}
+
+@objc(CDRecurringSchedule)
+public final class CDRecurringSchedule: NSManagedObject {}
+
+extension CDRecurringSchedule {
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<CDRecurringSchedule> {
+        NSFetchRequest<CDRecurringSchedule>(entityName: "CDRecurringSchedule")
+    }
+
+    @NSManaged public var id: UUID
+    /// Start of day of the first occurrence. Monthly schedules repeat on this day-of-month (clamped to short months).
+    @NSManaged public var startDate: Date
+    @NSManaged public var intervalRaw: String
+    /// Frozen USD-equivalent at save time. Only used when there's no currency snapshot or no live rate.
+    @NSManaged public var amount: Double
+    @NSManaged public var originalCurrencyRaw: String?
+    @NSManaged public var originalAmount: Double
+    @NSManaged public var categoryRaw: String
+    @NSManaged public var merchant: String?
+    @NSManaged public var paymentMethodRaw: String?
+    @NSManaged public var notes: String?
+    @NSManaged public var typeRaw: Int16
+    @NSManaged public var createdAt: Date
+
+    var interval: RecurringInterval { RecurringInterval(rawValue: intervalRaw) ?? .monthly }
+    var category: MoneyCategory { MoneyCategory(rawValue: categoryRaw) ?? .misc }
+    var paymentMethod: PaymentMethod { PaymentMethod(rawValue: paymentMethodRaw ?? "") ?? .other }
+    var type: TransactionType { TransactionType(rawValue: typeRaw) ?? .expense }
+
+    var originalCurrency: AppCurrency {
+        if let raw = originalCurrencyRaw, let currency = AppCurrency(rawValue: raw) {
+            return currency
+        }
+        return .usd
+    }
+
     var hasCurrencySnapshot: Bool { originalCurrencyRaw != nil }
 }
 
@@ -107,4 +150,5 @@ extension CDSkippedOccurrence {
 extension CDTransaction: Identifiable {}
 extension CDPreset: Identifiable {}
 extension CDBudget: Identifiable {}
+extension CDRecurringSchedule: Identifiable {}
 

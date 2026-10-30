@@ -110,7 +110,7 @@ struct SettingsView: View {
                                         Text("View Recurring Transactions")
                                             .font(.headline)
                                             .foregroundColor(.white)
-                                        Text("See all transactions set to repeat")
+                                        Text("Manage transactions that log automatically")
                                             .font(.caption)
                                             .foregroundColor(.white.opacity(0.5))
                                     }
