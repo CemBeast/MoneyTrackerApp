@@ -192,4 +192,84 @@ struct RecurringEngineMonthlyTests {
         #expect(instanceMonth == 2, "Instance should be in February")
         #expect(instanceDay == 15, "Instance should be on the 15th to match template")
     }
+
+    @Test("Deleted generated instance is not re-created on the next run")
+    func deletedInstanceIsNotRegenerated() throws {
+        let controller = makeTestController()
+        let context = controller.container.viewContext
+        let calendar = Calendar.current
+        let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date())!
+
+        let groupId = UUID()
+        _ = createMonthlyTemplate(context: context, date: threeMonthsAgo, groupId: groupId)
+        try context.save()
+
+        let engine = RecurringEngine(context: context)
+        engine.generateDueTransactions(asOf: Date())
+        #expect(countGeneratedInstances(context: context, groupId: groupId) == 3)
+
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(format: "generatedFromRecurringId == %@", groupId as CVarArg)
+        let instance = try #require(try context.fetch(request).first)
+        RecurringEngine.recordSkippedOccurrence(for: instance, in: context)
+        context.delete(instance)
+        try context.save()
+
+        engine.generateDueTransactions(asOf: Date())
+        #expect(countGeneratedInstances(context: context, groupId: groupId) == 2, "Deleted occurrence should stay deleted")
+    }
+
+    @Test("Moving a generated instance to another month does not re-log its original month")
+    func movedInstanceIsNotRegenerated() throws {
+        let controller = makeTestController()
+        let context = controller.container.viewContext
+        let calendar = Calendar.current
+        let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date())!
+
+        let groupId = UUID()
+        _ = createMonthlyTemplate(context: context, date: threeMonthsAgo, groupId: groupId)
+        try context.save()
+
+        let engine = RecurringEngine(context: context)
+        engine.generateDueTransactions(asOf: Date())
+
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(format: "generatedFromRecurringId == %@", groupId as CVarArg)
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: true)]
+        let instance = try #require(try context.fetch(request).first)
+        instance.date = calendar.date(byAdding: .day, value: -45, to: instance.date)!
+        try context.save()
+
+        engine.generateDueTransactions(asOf: Date())
+        #expect(countGeneratedInstances(context: context, groupId: groupId) == 3, "Moved instance should still count for its scheduled month")
+    }
+
+    @Test("Deleting a moved generated instance does not re-log its original month")
+    func movedThenDeletedInstanceIsNotRegenerated() throws {
+        let controller = makeTestController()
+        let context = controller.container.viewContext
+        let calendar = Calendar.current
+        let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date())!
+
+        let groupId = UUID()
+        _ = createMonthlyTemplate(context: context, date: threeMonthsAgo, groupId: groupId)
+        try context.save()
+
+        let engine = RecurringEngine(context: context)
+        engine.generateDueTransactions(asOf: Date())
+
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(format: "generatedFromRecurringId == %@", groupId as CVarArg)
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDTransaction.date, ascending: true)]
+        let instance = try #require(try context.fetch(request).first)
+        instance.date = calendar.date(byAdding: .day, value: -45, to: instance.date)!
+        try context.save()
+
+        RecurringEngine.recordSkippedOccurrence(for: instance, in: context)
+        context.delete(instance)
+        try context.save()
+
+        engine.generateDueTransactions(asOf: Date())
+        #expect(countGeneratedInstances(context: context, groupId: groupId) == 2, "Deleted occurrence should stay deleted even after being moved")
+    }
 }

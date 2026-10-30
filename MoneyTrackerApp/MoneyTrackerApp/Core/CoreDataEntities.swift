@@ -28,6 +28,8 @@ extension CDTransaction {
     @NSManaged public var recurringIntervalRaw: String?
     @NSManaged public var recurringGroupId: UUID?
     @NSManaged public var generatedFromRecurringId: UUID?
+    /// Original scheduled date of a generated instance (nil for templates/manual rows). `date` may be edited; this isn't.
+    @NSManaged public var occurrenceDate: Date?
 
     @NSManaged public var createdAt: Date
 
@@ -85,6 +87,19 @@ extension CDBudget {
     @NSManaged public var limit: Double
 
     var category: MoneyCategory { MoneyCategory(rawValue: categoryRaw) ?? .misc }
+}
+
+@objc(CDSkippedOccurrence)
+public final class CDSkippedOccurrence: NSManagedObject {}
+
+extension CDSkippedOccurrence {
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<CDSkippedOccurrence> {
+        NSFetchRequest<CDSkippedOccurrence>(entityName: "CDSkippedOccurrence")
+    }
+
+    @NSManaged public var id: UUID
+    @NSManaged public var groupId: UUID
+    @NSManaged public var date: Date
 }
 
 extension CDTransaction: Identifiable {}

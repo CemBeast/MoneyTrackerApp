@@ -17,8 +17,10 @@ struct BackupData: Codable {
     let transactions: [BackupTransaction]
     let presets: [BackupPreset]
     let budgets: [BackupBudget]
+    /// v3+ tombstones for deleted recurring occurrences. Optional so older backups still decode.
+    let skippedOccurrences: [BackupSkippedOccurrence]?
 
-    static let currentVersion = 2
+    static let currentVersion = 3
 }
 
 struct BackupTransaction: Codable {
@@ -34,6 +36,8 @@ struct BackupTransaction: Codable {
     let recurringIntervalRaw: String?
     let recurringGroupId: UUID?
     let generatedFromRecurringId: UUID?
+    /// v3+ scheduled date of generated instances. Optional so older backups still decode.
+    let occurrenceDate: Date?
     let createdAt: Date
     /// v2+ original-currency snapshot. Optional so v1 backups still decode.
     let originalCurrencyRaw: String?
@@ -57,6 +61,12 @@ struct BackupBudget: Codable {
     let limit: Double
 }
 
+struct BackupSkippedOccurrence: Codable {
+    let id: UUID
+    let groupId: UUID
+    let date: Date
+}
+
 // MARK: - Backup Manager
 
 enum BackupManager {
@@ -72,9 +82,12 @@ enum BackupManager {
         let budgetRequest = NSFetchRequest<CDBudget>(entityName: "CDBudget")
         budgetRequest.sortDescriptors = [NSSortDescriptor(keyPath: \CDBudget.monthStart, ascending: true)]
 
+        let skippedRequest = NSFetchRequest<CDSkippedOccurrence>(entityName: "CDSkippedOccurrence")
+
         guard let transactions = try? context.fetch(txnRequest),
               let presets = try? context.fetch(presetRequest),
-              let budgets = try? context.fetch(budgetRequest) else {
+              let budgets = try? context.fetch(budgetRequest),
+              let skipped = try? context.fetch(skippedRequest) else {
             return nil
         }
 
@@ -95,6 +108,7 @@ enum BackupManager {
                     recurringIntervalRaw: t.recurringIntervalRaw,
                     recurringGroupId: t.recurringGroupId,
                     generatedFromRecurringId: t.generatedFromRecurringId,
+                    occurrenceDate: t.occurrenceDate,
                     createdAt: t.createdAt,
                     originalCurrencyRaw: t.originalCurrencyRaw,
                     originalAmount: t.hasCurrencySnapshot ? t.originalAmount : nil
@@ -118,6 +132,9 @@ enum BackupManager {
                     categoryRaw: b.categoryRaw,
                     limit: b.limit
                 )
+            },
+            skippedOccurrences: skipped.map { s in
+                BackupSkippedOccurrence(id: s.id, groupId: s.groupId, date: s.date)
             }
         )
 
@@ -158,6 +175,8 @@ enum BackupManager {
         (try? context.fetch(presetRequest))?.forEach { context.delete($0) }
         let budgetRequest = NSFetchRequest<CDBudget>(entityName: "CDBudget")
         (try? context.fetch(budgetRequest))?.forEach { context.delete($0) }
+        let skippedRequest = NSFetchRequest<CDSkippedOccurrence>(entityName: "CDSkippedOccurrence")
+        (try? context.fetch(skippedRequest))?.forEach { context.delete($0) }
 
         // Insert transactions
         for t in backup.transactions {
@@ -174,6 +193,7 @@ enum BackupManager {
             obj.recurringIntervalRaw = t.recurringIntervalRaw
             obj.recurringGroupId = t.recurringGroupId
             obj.generatedFromRecurringId = t.generatedFromRecurringId
+            obj.occurrenceDate = t.occurrenceDate
             obj.createdAt = t.createdAt
             obj.originalCurrencyRaw = t.originalCurrencyRaw
             obj.originalAmount = t.originalAmount ?? 0
@@ -198,6 +218,14 @@ enum BackupManager {
             obj.monthStart = b.monthStart
             obj.categoryRaw = b.categoryRaw
             obj.limit = b.limit
+        }
+
+        // Insert skipped recurring occurrences
+        for s in backup.skippedOccurrences ?? [] {
+            let obj = CDSkippedOccurrence(context: context)
+            obj.id = s.id
+            obj.groupId = s.groupId
+            obj.date = s.date
         }
 
         return nil

@@ -90,8 +90,13 @@ final class PersistenceController {
 
         // Budget
         let budget = NSEntityDescription()
+        let skipped = NSEntityDescription()
         budget.name = "CDBudget"
         budget.managedObjectClassName = "CDBudget"
+
+        // Skipped recurring occurrence (tombstone so a deleted generated instance isn't re-created)
+        skipped.name = "CDSkippedOccurrence"
+        skipped.managedObjectClassName = "CDSkippedOccurrence"
 
         txn.properties = [
             attr("id", .UUIDAttributeType, optional: false),
@@ -113,6 +118,8 @@ final class PersistenceController {
             attr("recurringIntervalRaw", .stringAttributeType, optional: true), // "monthly" | "weekly" | "daily"
             attr("recurringGroupId", .UUIDAttributeType, optional: true),
             attr("generatedFromRecurringId", .UUIDAttributeType, optional: true),
+            // Scheduled date of a generated instance. Unlike `date`, never edited, so the engine can match periods after the user moves it.
+            attr("occurrenceDate", .dateAttributeType, optional: true),
 
             attr("createdAt", .dateAttributeType, optional: false)
         ]
@@ -134,7 +141,13 @@ final class PersistenceController {
             attr("limit", .doubleAttributeType, optional: false)
         ]
 
-        model.entities = [txn, preset, budget]
+        skipped.properties = [
+            attr("id", .UUIDAttributeType, optional: false),
+            attr("groupId", .UUIDAttributeType, optional: false), // recurringGroupId of the template
+            attr("date", .dateAttributeType, optional: false) // date of the deleted occurrence
+        ]
+
+        model.entities = [txn, preset, budget, skipped]
         return model
     }
 

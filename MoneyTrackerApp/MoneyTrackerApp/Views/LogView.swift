@@ -14,6 +14,7 @@ struct LogView: View {
     @State private var showQuickAdd = false
     @State private var transactionToEdit: CDTransaction?
     @State private var deletedTransaction: CDTransaction?
+    @State private var deletedSkipMarker: CDSkippedOccurrence?
     @State private var showUndoToast = false
     @State private var refreshToken = UUID()
     @State private var showSettings = false
@@ -139,6 +140,8 @@ struct LogView: View {
                         },
                         onDelete: { transaction in
                             deletedTransaction = transaction
+                            // Generated recurring instances leave a tombstone so the engine won't re-log them.
+                            deletedSkipMarker = RecurringEngine.recordSkippedOccurrence(for: transaction, in: viewContext)
                             viewContext.delete(transaction)
                             PersistenceController.shared.save(viewContext)
                             showUndoToast = true
@@ -196,8 +199,12 @@ struct LogView: View {
                     action: {
                         if let deleted = deletedTransaction {
                             viewContext.insert(deleted)
+                            if let marker = deletedSkipMarker {
+                                viewContext.delete(marker)
+                            }
                             PersistenceController.shared.save(viewContext)
                             deletedTransaction = nil
+                            deletedSkipMarker = nil
                         }
                         showUndoToast = false
                     }

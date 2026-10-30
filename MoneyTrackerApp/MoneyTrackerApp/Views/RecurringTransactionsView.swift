@@ -18,6 +18,8 @@ struct RecurringTransactionsView: View {
     )
     private var recurringTransactions: FetchedResults<CDTransaction>
 
+    @State private var transactionToRemove: CDTransaction?
+
     var body: some View {
         ZStack {
             Color.cyberBlack.ignoresSafeArea()
@@ -50,6 +52,13 @@ struct RecurringTransactionsView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    transactionToRemove = transaction
+                                } label: {
+                                    Label("Remove Recurring", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .padding()
@@ -57,5 +66,34 @@ struct RecurringTransactionsView: View {
             }
         }
         .cyberNavTitle("Recurring")
+        .confirmationDialog(
+            "Remove Recurring?",
+            isPresented: Binding(
+                get: { transactionToRemove != nil },
+                set: { if !$0 { transactionToRemove = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Remove Recurring", role: .destructive) {
+                if let transaction = transactionToRemove {
+                    stopRecurring(transaction)
+                }
+                transactionToRemove = nil
+            }
+            Button("Cancel", role: .cancel) {
+                transactionToRemove = nil
+            }
+        } message: {
+            Text("No new transactions will be generated. Past logged transactions are kept.")
+        }
+    }
+
+    /// Stops future generation without deleting anything. The template is itself the first logged
+    /// occurrence, so it stays as a regular transaction; generated instances keep their link via
+    /// generatedFromRecurringId. recurringGroupId is kept so re-enabling won't duplicate past months.
+    private func stopRecurring(_ transaction: CDTransaction) {
+        transaction.isRecurring = false
+        transaction.recurringIntervalRaw = nil
+        PersistenceController.shared.save(viewContext)
     }
 }

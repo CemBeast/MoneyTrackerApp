@@ -41,6 +41,7 @@ struct RecurringEngine {
     
     func generateDueTransactions(asOf now: Date = Date()) {
         backfillRecurringIntervalOnGeneratedInstances()
+        backfillOccurrenceDateOnGeneratedInstances()
 
         guard let templates = fetchRecurringTemplates(), !templates.isEmpty else { return }
 
@@ -87,6 +88,56 @@ struct RecurringEngine {
         PersistenceController.shared.save(context)
     }
 
+    /// Records that a generated occurrence was deleted by the user so it isn't re-created.
+    /// Returns the tombstone (so callers can remove it on undo), or nil if the transaction isn't a generated instance.
+    @discardableResult
+    static func recordSkippedOccurrence(for transaction: CDTransaction, in context: NSManagedObjectContext) -> CDSkippedOccurrence? {
+        guard let groupId = transaction.generatedFromRecurringId else { return nil }
+        let skipped = CDSkippedOccurrence(context: context)
+        skipped.id = UUID()
+        skipped.groupId = groupId
+        // Use the scheduled date so a moved instance still tombstones the period it was generated for.
+        skipped.date = transaction.occurrenceDate ?? transaction.date
+        return skipped
+    }
+
+    /// True if a generated instance or a skipped (user-deleted) occurrence exists for the group in [start, end).
+    /// Instances are matched by their scheduled occurrenceDate, so moving one to another period doesn't trigger a re-log.
+    private func hasOccurrence(groupId: UUID, from startDate: Date, to endDate: Date) -> Bool {
+        let txnRequest = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        txnRequest.fetchLimit = 1
+        txnRequest.predicate = NSPredicate(
+            format: "generatedFromRecurringId == %@ AND ((occurrenceDate >= %@ AND occurrenceDate < %@) OR (occurrenceDate == nil AND date >= %@ AND date < %@))",
+            groupId as CVarArg,
+            startDate as NSDate,
+            endDate as NSDate,
+            startDate as NSDate,
+            endDate as NSDate
+        )
+        if ((try? context.count(for: txnRequest)) ?? 0) > 0 { return true }
+
+        let skippedRequest = NSFetchRequest<CDSkippedOccurrence>(entityName: "CDSkippedOccurrence")
+        skippedRequest.fetchLimit = 1
+        skippedRequest.predicate = NSPredicate(
+            format: "groupId == %@ AND date >= %@ AND date < %@",
+            groupId as CVarArg,
+            startDate as NSDate,
+            endDate as NSDate
+        )
+        return ((try? context.count(for: skippedRequest)) ?? 0) > 0
+    }
+
+    /// Instances created before occurrenceDate existed: assume their current date is the scheduled one.
+    private func backfillOccurrenceDateOnGeneratedInstances() {
+        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+        request.predicate = NSPredicate(format: "generatedFromRecurringId != nil AND occurrenceDate == nil")
+        guard let instances = try? context.fetch(request), !instances.isEmpty else { return }
+        for instance in instances {
+            instance.occurrenceDate = instance.date
+        }
+        PersistenceController.shared.save(context)
+    }
+
     private func fetchRecurringTemplates() -> [CDTransaction]? {
         // Recurring templates are source entries (not generated children).
         let templateRequest = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
@@ -115,6 +166,7 @@ struct RecurringEngine {
         let instance = CDTransaction(context: context)
         instance.id = UUID()
         instance.date = instanceDate
+        instance.occurrenceDate = instanceDate
         applyAmountSnapshot(from: template, to: instance)
         instance.categoryRaw = template.categoryRaw
         instance.merchant = template.merchant
@@ -131,17 +183,7 @@ struct RecurringEngine {
     private func hasGeneratedInstance(groupId: UUID, month: MonthKey) -> Bool {
         let startDate = month.startDate
         let endDate = calendar.date(byAdding: .month, value: 1, to: startDate) ?? startDate
-        
-        let existingRequest = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        existingRequest.fetchLimit = 1
-        existingRequest.predicate = NSPredicate(
-            format: "generatedFromRecurringId == %@ AND date >= %@ AND date < %@",
-            groupId as CVarArg,
-            startDate as NSDate,
-            endDate as NSDate
-        )
-        
-        return ((try? context.fetch(existingRequest)) ?? []).isEmpty == false
+        return hasOccurrence(groupId: groupId, from: startDate, to: endDate)
     }
     
     private func monthlyOccurrenceDate(for templateDate: Date, in month: MonthKey) -> Date {
@@ -181,6 +223,7 @@ struct RecurringEngine {
                 let instance = CDTransaction(context: context)
                 instance.id = UUID()
                 instance.date = occurrenceDate
+                instance.occurrenceDate = occurrenceDate
                 applyAmountSnapshot(from: template, to: instance)
                 instance.categoryRaw = template.categoryRaw
                 instance.merchant = template.merchant
@@ -202,16 +245,7 @@ struct RecurringEngine {
         var length: TimeInterval = 0
         guard calendar.dateInterval(of: .weekOfYear, start: &startOfWeek, interval: &length, for: occurrenceDate) else { return false }
         let endOfWeek = startOfWeek.addingTimeInterval(length)
-
-        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(
-            format: "generatedFromRecurringId == %@ AND date >= %@ AND date < %@",
-            groupId as CVarArg,
-            startOfWeek as NSDate,
-            endOfWeek as NSDate
-        )
-        return ((try? context.fetch(request)) ?? []).isEmpty == false
+        return hasOccurrence(groupId: groupId, from: startOfWeek, to: endOfWeek)
     }
 
     private func addWeeks(_ weeks: Int, to date: Date) -> Date {
@@ -230,6 +264,7 @@ struct RecurringEngine {
                 let instance = CDTransaction(context: context)
                 instance.id = UUID()
                 instance.date = occurrenceDate
+                instance.occurrenceDate = occurrenceDate
                 applyAmountSnapshot(from: template, to: instance)
                 instance.categoryRaw = template.categoryRaw
                 instance.merchant = template.merchant
@@ -249,16 +284,7 @@ struct RecurringEngine {
     private func hasGeneratedInstanceForDay(groupId: UUID, occurrenceDate: Date) -> Bool {
         let startOfDay = calendar.startOfDay(for: occurrenceDate)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-
-        let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(
-            format: "generatedFromRecurringId == %@ AND date >= %@ AND date < %@",
-            groupId as CVarArg,
-            startOfDay as NSDate,
-            endOfDay as NSDate
-        )
-        return ((try? context.fetch(request)) ?? []).isEmpty == false
+        return hasOccurrence(groupId: groupId, from: startOfDay, to: endOfDay)
     }
 
     private func addDays(_ days: Int, to date: Date) -> Date {
